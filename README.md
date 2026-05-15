@@ -1,3 +1,5 @@
+# 120FPS+ UNLOCK FOR YAAGL. FPS unlock setting in settings menu to enable!
+
 # Yet another anime game launcher (Yaagl)
 
 ## Current Supported Game Version:
