@@ -11,6 +11,7 @@ import {
   utf16le,
   writeBinary,
   getKeyOrDefault,
+  wait,
 } from "../../../utils";
 import { Wine } from "../../../wine";
 import { Config } from "@config";
@@ -19,6 +20,7 @@ import { CN_BLOCK_URL, OS_BLOCK_URL } from "../../secret";
 import hk4eHDRGlobalReg from "../../../constants/hk4e_hdr_os.reg?raw";
 import hk4eHDRCnReg from "../../../constants/hk4e_hdr_cn.reg?raw";
 import { gt } from "semver";
+import { getHK4EFpsUnlockerTarget, startHK4EFpsUnlocker } from "./fps-unlocker";
 
 const HDR_REGISTRY_FILES = {
   hk4e_global: hk4eHDRGlobalReg,
@@ -126,9 +128,11 @@ cd /d "${wine.toWinePath(gameDir)}"
   yield* patchProgram(gameDir, wine, server, config);
   await mkdirp(resolve("./logs"));
   const yaaglDir = resolve("./");
+  let fpsUnlocker: Awaited<ReturnType<typeof startHK4EFpsUnlocker>> | undefined;
   try {
     yield ["setStateText", "GAME_RUNNING"];
     const logfile = resolve(`./logs/game_${Date.now()}.log`);
+    const fpsTarget = getHK4EFpsUnlockerTarget(config);
 
     if (config.blockNet) {
       const tmpScriptPath = "/tmp/yaagl_network_block_script.sh";
@@ -163,35 +167,69 @@ cd /d "${wine.toWinePath(gameDir)}"
       );
     }
 
-    await wine.exec2(
-      config.steamPatch ? "C:\\windows\\system32\\steam.exe" : "cmd",
-      config.steamPatch
-        ? [wine.toWinePath(join(gameDir, gameExecutable))]
-        : ["/c", `${wine.toWinePath(resolve("./config.bat"))} `],
-      {
-        MTL_HUD_ENABLED: config.metalHud ? "1" : "",
-        WINEDLLOVERRIDES: "",
-        WINE_ENABLE_TIMEOUT_FIX: config.timeoutFix ? "1" : "0",
-        ...(wine.attributes.renderBackend == "dxmt"
-          ? {
-              WINEMSYNC: "1",
-              DXMT_LOG_PATH: yaaglDir,
-              DXMT_CONFIG: "d3d11.preferredMaxFrameRate=0;",
-              DXMT_CONFIG_FILE: join(yaaglDir, "dxmt.conf"),
-              GST_PLUGIN_FEATURE_RANK: "atdec:MAX,avdec_h264:MAX",
-            }
-          : {
-              WINEESYNC: "1",
-            }),
-        ...(config.proxyEnabled
-          ? {
-              HTTP_PROXY: config.proxyHost,
-              HTTPS_PROXY: config.proxyHost,
-            }
-          : {}),
-      },
-      logfile
-    );
+    const launchGame = () =>
+      wine.exec2(
+        config.steamPatch ? "C:\\windows\\system32\\steam.exe" : "cmd",
+        config.steamPatch
+          ? [wine.toWinePath(join(gameDir, gameExecutable))]
+          : ["/c", `${wine.toWinePath(resolve("./config.bat"))} `],
+        {
+          MTL_HUD_ENABLED: config.metalHud ? "1" : "",
+          WINEDLLOVERRIDES: "",
+          WINE_ENABLE_TIMEOUT_FIX: config.timeoutFix ? "1" : "0",
+          ...(wine.attributes.renderBackend == "dxmt"
+            ? {
+                WINEMSYNC: "1",
+                DXMT_LOG_PATH: yaaglDir,
+                DXMT_CONFIG: `d3d11.preferredMaxFrameRate=${
+                  config.hk4eFpsUnlocker ? fpsTarget : 60
+                };`,
+                DXMT_CONFIG_FILE: join(yaaglDir, "dxmt.conf"),
+                GST_PLUGIN_FEATURE_RANK: "atdec:MAX,avdec_h264:MAX",
+              }
+            : {
+                WINEESYNC: "1",
+              }),
+          ...(config.proxyEnabled
+            ? {
+                HTTP_PROXY: config.proxyHost,
+                HTTPS_PROXY: config.proxyHost,
+              }
+            : {}),
+        },
+        logfile
+      );
+
+    if (config.hk4eFpsUnlocker) {
+      let launchDone = false;
+      const launch = launchGame()
+        .then(
+          ret => ({ ret }),
+          error => ({ error })
+        )
+        .finally(() => {
+          launchDone = true;
+        });
+      try {
+        await wait(10000);
+        if (!launchDone) {
+          fpsUnlocker = await startHK4EFpsUnlocker({
+            wine,
+            fps: fpsTarget,
+          });
+        }
+        const result = await launch;
+        if ("error" in result) {
+          throw result.error;
+        }
+      } finally {
+        if (fpsUnlocker) {
+          await fpsUnlocker.stop();
+        }
+      }
+    } else {
+      await launchGame();
+    }
     await wine.waitUntilServerOff();
     if (config.hk4eEnableHDR) {
       await revertHDRRegistry({ wine, server });

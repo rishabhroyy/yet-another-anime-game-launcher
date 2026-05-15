@@ -46,6 +46,8 @@ import createBlockNet from "./config/block-net";
 import createResolution from "./config/resolution";
 import createTimeoutFix from "./config/timeout-fix";
 import { createEnableHDRConfig } from "./config/enable-hdr";
+import { createHK4EFpsUnlockerConfig } from "./config/fps-unlocker";
+import { checkAndDownloadHK4EFpsUnlocker } from "./fps-unlocker";
 import { getGameVersion } from "../unity";
 import {
   VoicePackNames,
@@ -266,6 +268,9 @@ export async function createHK4EChannelClient({
       if (wine.attributes.renderBackend == "dxmt") {
         yield* checkAndDownloadDXMT(aria2);
       }
+      if (config.hk4eFpsUnlocker) {
+        yield* checkAndDownloadHK4EFpsUnlocker(aria2, wine);
+      }
       yield* launchGameProgram({
         gameDir: _gameInstallDir(),
         wine,
@@ -303,6 +308,7 @@ export async function createHK4EChannelClient({
       const [HDR] = await createEnableHDRConfig({ locale, config });
       const [RES] = await createResolution({ locale, config });
       const [TF] = await createTimeoutFix({ locale, config });
+      const [FPSU] = await createHK4EFpsUnlockerConfig({ locale, config });
 
       return function () {
         return [
@@ -315,6 +321,7 @@ export async function createHK4EChannelClient({
           <BN />,
           <RES />,
           <TF />,
+          <FPSU />,
         ];
       };
     },
