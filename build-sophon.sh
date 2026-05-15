@@ -12,6 +12,7 @@ NUITKA_CACHE_DIR=./.cache uv run nuitka \
 --warn-implicit-exceptions \
 --warn-unusual-code \
 --standalone \
+--static-libpython=no \
 --python-flag=isolated \
 --include-data-files=./hpatchz=./hpatchz \
 --output-filename=sophon-server \
