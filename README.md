@@ -1,3 +1,5 @@
+# Redesigned YAAGL with updated launcher featuring all 3 games in one launcher, as well as 120fps unlock for all of them
+
 # Yet another anime game launcher (Yaagl)
 
 ## Current Supported Game Version:
