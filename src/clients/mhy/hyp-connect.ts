@@ -5,6 +5,7 @@ import {
   HoyoConnectGameBackgroundType,
   HoyoConnectGamePackageMainfest,
   HoyoConnectGetAllGameBasicInfoResponse,
+  HoyoConnectGetGamesResponse,
   HoyoConnectGetGamePackagesResponse,
 } from "./launcher-info";
 import { exec } from "@utils";
@@ -19,17 +20,36 @@ async function fetch(url: string) {
   };
 }
 
+function withLanguage(url: string, locale: Locale, server: Server) {
+  return (
+    url +
+    (server.id == "CN"
+      ? `&language=zh-cn`
+      : `&language=${locale.get("CONTENT_LANG_ID")}`)
+  );
+}
+
+function apiUrlFromAdvUrl(server: Server, endpoint: string) {
+  return server.adv_url.replace("getAllGameBasicInfo", endpoint);
+}
+
+export async function getGameDisplayInfo(locale: Locale, server: Server) {
+  const ret: HoyoConnectGetGamesResponse = await (
+    await fetch(
+      withLanguage(apiUrlFromAdvUrl(server, "getGames"), locale, server)
+    )
+  ).json();
+  const game = ret.data.games.find(x => x.biz == server.id);
+  if (!game) throw new Error(`failed to fetch game display: ${server.id}`);
+  return game.display;
+}
+
 export async function getLatestAdvInfo(
   locale: Locale,
   server: Server
 ): Promise<HoyoConnectGameBackground> {
   const ret: HoyoConnectGetAllGameBasicInfoResponse = await (
-    await fetch(
-      server.adv_url +
-        (server.id == "CN"
-          ? `&language=zh-cn` // CN server has no other language support
-          : `&language=${locale.get("CONTENT_LANG_ID")}`)
-    )
+    await fetch(withLanguage(server.adv_url, locale, server))
   ).json();
   const game = ret.data.game_info_list.find(x => x.game.biz == server.id);
   if (!game || game.backgrounds.length < 1)

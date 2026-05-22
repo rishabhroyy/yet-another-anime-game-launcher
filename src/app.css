@@ -86,3 +86,422 @@ body {
 ::-webkit-scrollbar-thumb:active {
   box-shadow: inset 1px 1px 3px #a6a6a6;
 }
+
+.hoyoplay-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: white;
+  background-color: #08090d;
+  background-position: center;
+  background-size: cover;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hoyoplay-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+      90deg,
+      rgba(6, 7, 11, 0.7),
+      rgba(6, 7, 11, 0.08) 34%,
+      rgba(6, 7, 11, 0.14) 72%,
+      rgba(6, 7, 11, 0.48)
+    ),
+    linear-gradient(0deg, rgba(4, 5, 8, 0.7), rgba(4, 5, 8, 0) 44%);
+  pointer-events: none;
+}
+
+.hoyoplay-video,
+.hoyoplay-theme {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-position: center;
+  background-size: cover;
+  transition: opacity 0.3s ease;
+}
+
+.hoyoplay-game-rail {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0;
+  background: rgba(6, 7, 11, 0.74);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.hoyoplay-orbit-button,
+.hoyoplay-game-icon,
+.hoyoplay-icon-button,
+.hoyoplay-primary-button,
+.hoyoplay-secondary-button,
+.hoyoplay-menu-button {
+  border: 0;
+  cursor: pointer;
+}
+
+.hoyoplay-orbit-button {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.hoyoplay-orbit-button span {
+  width: 28px;
+  height: 28px;
+  border: 4px solid white;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+
+.hoyoplay-game-icons {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+}
+
+.hoyoplay-game-icon {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 0.72;
+  transition: opacity 160ms ease, transform 160ms ease,
+    background-color 160ms ease;
+}
+
+.hoyoplay-game-icon:hover,
+.hoyoplay-game-icon.active {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.hoyoplay-game-icon.active {
+  background: rgba(255, 221, 67, 0.92);
+}
+
+.hoyoplay-game-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.hoyoplay-installed-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(6, 7, 11, 0.95);
+  border-radius: 50%;
+  background: #9299a4;
+}
+
+.hoyoplay-installed-dot.installed {
+  background: #36d97d;
+}
+
+.hoyoplay-stage {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 0 88px;
+}
+
+.hoyoplay-top-actions {
+  position: absolute;
+  z-index: 2;
+  top: 24px;
+  right: 28px;
+  display: flex;
+  gap: 12px;
+}
+
+.hoyoplay-icon-button,
+.hoyoplay-menu-button {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: rgba(18, 21, 28, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16px);
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.hoyoplay-icon-button:hover,
+.hoyoplay-menu-button:hover {
+  background: rgba(42, 47, 58, 0.82);
+  transform: translateY(-1px);
+}
+
+.hoyoplay-settings-icon,
+.hoyoplay-link-icon,
+.hoyoplay-menu-icon,
+.hoyoplay-action-icon {
+  position: relative;
+  display: block;
+}
+
+.hoyoplay-settings-icon {
+  width: 22px;
+  height: 22px;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+}
+
+.hoyoplay-settings-icon::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.hoyoplay-link-icon {
+  width: 22px;
+  height: 22px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+}
+
+.hoyoplay-link-icon::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+
+.hoyoplay-action-area {
+  position: absolute;
+  z-index: 2;
+  right: 42px;
+  bottom: 38px;
+  left: 112px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.hoyoplay-action-area > * {
+  pointer-events: auto;
+}
+
+.hoyoplay-primary-button {
+  min-width: 336px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-radius: 999px;
+  background: #ffd834;
+  color: #111418;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34);
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.hoyoplay-primary-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.hoyoplay-primary-button:disabled {
+  cursor: default;
+  filter: grayscale(0.5);
+  opacity: 0.68;
+}
+
+.hoyoplay-action-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #111418;
+}
+
+.hoyoplay-action-icon::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid #ffd834;
+}
+
+.hoyoplay-action-icon.download::after {
+  top: 13px;
+  left: 18px;
+  width: 9px;
+  height: 16px;
+  border: 0;
+  border-bottom: 4px solid #ffd834;
+  border-left: 4px solid #ffd834;
+  transform: rotate(-45deg);
+}
+
+.hoyoplay-action-copy {
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+
+.hoyoplay-action-copy span {
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.hoyoplay-action-copy small {
+  margin-top: 5px;
+  color: rgba(17, 20, 24, 0.68);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.hoyoplay-secondary-button {
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  color: white;
+  background: rgba(18, 21, 28, 0.68);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px);
+  font-weight: 800;
+}
+
+.hoyoplay-menu-button {
+  width: 72px;
+  height: 72px;
+}
+
+.hoyoplay-menu-icon {
+  width: 26px;
+  height: 16px;
+  border-top: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+}
+
+.hoyoplay-menu-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  border-top: 3px solid currentColor;
+  transform: translateY(-50%);
+}
+
+.hoyoplay-progress {
+  width: min(360px, 34vw);
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: rgba(9, 11, 16, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.hoyoplay-progress strong {
+  display: block;
+  margin-bottom: 9px;
+  color: white;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.hoyoplay-setting-row {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: #222;
+  font-weight: 700;
+}
+
+.hoyoplay-setting-row input[type="number"] {
+  width: 120px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d6d6d6;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.hoyoplay-setting-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+}
+
+.hoyoplay-settings-muted {
+  margin: 10px 0 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .hoyoplay-game-rail {
+    width: 72px;
+  }
+
+  .hoyoplay-stage {
+    left: 72px;
+  }
+
+  .hoyoplay-game-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .hoyoplay-action-area {
+    left: 88px;
+    right: 18px;
+    bottom: 20px;
+    gap: 10px;
+  }
+
+  .hoyoplay-primary-button {
+    min-width: 246px;
+  }
+
+  .hoyoplay-action-copy span {
+    font-size: 20px;
+  }
+
+  .hoyoplay-menu-button {
+    width: 60px;
+    height: 60px;
+  }
+}

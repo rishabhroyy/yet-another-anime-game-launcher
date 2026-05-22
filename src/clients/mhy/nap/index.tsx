@@ -45,7 +45,11 @@ import {
   HoyoConnectGameBackgroundType,
   VoicePackNames,
 } from "../launcher-info";
-import { getLatestAdvInfo, getLatestVersionInfo } from "../hyp-connect";
+import {
+  getGameDisplayInfo,
+  getLatestAdvInfo,
+  getLatestVersionInfo,
+} from "../hyp-connect";
 
 const CURRENT_SUPPORTED_VERSION = "2.8.0";
 
@@ -76,6 +80,9 @@ export async function createNAPChannelClient({
     theme: { url: theme_url },
     type: bg_type,
   } = await getLatestAdvInfo(locale, server);
+  const displayInfo = await getGameDisplayInfo(locale, server).catch(
+    () => undefined
+  );
   const IS_VIDEO_BG =
     bg_type === HoyoConnectGameBackgroundType.BACKGROUND_TYPE_VIDEO;
   const {
@@ -124,7 +131,8 @@ export async function createNAPChannelClient({
       background: background, // Always show image
       background_video: IS_VIDEO_BG ? video_url : undefined,
       background_theme: IS_VIDEO_BG ? theme_url : undefined,
-      iconImage: icon,
+      iconImage: displayInfo?.icon.url ?? icon,
+      logo: displayInfo?.logo.url,
       url: icon_link,
     },
     predownloadVersion: () => pre_download?.major?.version ?? "",

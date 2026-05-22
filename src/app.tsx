@@ -21,6 +21,7 @@ import {
 } from "./wine";
 import { createGithubEndpoint } from "./github";
 import { createLauncher } from "./launcher";
+import { createHoyoplayLauncher } from "./launcher/hoyoplay";
 import "./app.css";
 import { createUpdater, downloadProgram } from "./updater";
 import { createCommonUpdateUI } from "./common-update-ui";
@@ -125,17 +126,26 @@ export async function createApp() {
       prefix: prefixPath,
       distro: wineStatus.wineDistribution,
     });
-    MainApp = await createLauncher({
-      wine,
-      locale,
-      github,
-      channelClient: await createClient({
+    if (import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplay") {
+      MainApp = await createHoyoplayLauncher({
         wine,
-        aria2,
         locale,
-      }),
-      onCheckUpdate,
-    });
+        aria2,
+        onCheckUpdate,
+      });
+    } else {
+      MainApp = await createLauncher({
+        wine,
+        locale,
+        github,
+        channelClient: await createClient({
+          wine,
+          aria2,
+          locale,
+        }),
+        onCheckUpdate,
+      });
+    }
   } else {
     MainApp = await createWineInstallProgram({
       aria2,

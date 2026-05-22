@@ -51,7 +51,11 @@ import {
   VoicePackNames,
   HoyoConnectGameBackgroundType,
 } from "../launcher-info";
-import { getLatestAdvInfo, getLatestVersionInfo } from "../hyp-connect";
+import {
+  getGameDisplayInfo,
+  getLatestAdvInfo,
+  getLatestVersionInfo,
+} from "../hyp-connect";
 
 // no need to check supported version
 // const CURRENT_SUPPORTED_VERSION = "4.8.0";
@@ -76,6 +80,9 @@ export async function createHK4EChannelClient({
     theme: { url: theme_url },
     type: bg_type,
   } = await getLatestAdvInfo(locale, server);
+  const displayInfo = await getGameDisplayInfo(locale, server).catch(
+    () => undefined
+  );
   const IS_VIDEO_BG =
     bg_type === HoyoConnectGameBackgroundType.BACKGROUND_TYPE_VIDEO;
 
@@ -135,6 +142,8 @@ export async function createHK4EChannelClient({
       background: background, // Always show image
       background_video: IS_VIDEO_BG ? video_url : undefined,
       background_theme: IS_VIDEO_BG ? theme_url : undefined,
+      iconImage: displayInfo?.icon.url ?? icon,
+      logo: displayInfo?.logo.url,
       url: icon_link,
     },
     predownloadVersion: () =>
