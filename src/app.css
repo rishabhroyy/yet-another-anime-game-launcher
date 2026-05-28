@@ -460,6 +460,16 @@ body {
   font: inherit;
 }
 
+.hoyoplay-setting-row select {
+  width: 280px;
+  max-width: 52%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d6d6d6;
+  border-radius: 6px;
+  font: inherit;
+}
+
 .hoyoplay-setting-row input[type="checkbox"] {
   width: 22px;
   height: 22px;

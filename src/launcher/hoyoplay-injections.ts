@@ -49,9 +49,12 @@ export async function* ensureGenshinFpsUnlocker(
   }
 }
 
-export async function startGenshinFpsUnlockScript(wine: Wine, fps: number) {
+export async function startGenshinFpsUnlockScript(
+  wine: Wine,
+  fps: number,
+  wineBin = resolve("./wine/bin/wine")
+) {
   const scriptPath = resolve("./hoyoplay_genshin_fps_unlocker.sh");
-  const wineBin = resolve("./wine/bin/wine");
 
   await writeFile(
     scriptPath,

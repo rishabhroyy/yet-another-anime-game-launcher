@@ -42,6 +42,15 @@ import {
   withDxmtPreferredMaxFrameRate,
   withWineExec2Transform,
 } from "./hoyoplay-injections";
+import {
+  createHoyoplayWineProxy,
+  ensureHoyoplayGameWine,
+  getHoyoplayGameWineTag,
+  getHoyoplayWineBin,
+  getHoyoplayWineOptions,
+  setHoyoplayGameWineTag,
+  type HoyoplayWineRef,
+} from "./hoyoplay-wine";
 
 type HoyoplayGameId = "genshin" | "hsr" | "zzz";
 
@@ -60,6 +69,14 @@ type GameState = {
   setFpsEnabled: (value: boolean) => void;
   fpsTarget: Accessor<string>;
   setFpsTarget: (value: string) => void;
+  wineRef: HoyoplayWineRef;
+  wineTag: Accessor<string>;
+  setWineTag: (value: string) => void;
+  wineOptions: {
+    tag: string;
+    displayName: string;
+    url: string;
+  }[];
 };
 
 function sanitizeFps(value: string) {
@@ -68,10 +85,18 @@ function sanitizeFps(value: string) {
 }
 
 function namespacedProgram(
+  aria2: Aria2,
+  baseWine: Wine,
   game: GameState,
   program: () => CommonUpdateProgram
 ): () => CommonUpdateProgram {
   return async function* () {
+    game.wineRef.current = yield* ensureHoyoplayGameWine({
+      aria2,
+      baseWine,
+      gameId: game.id,
+      wineTag: game.wineTag(),
+    });
     const iterator = await withStorageNamespace(game.namespace, async () =>
       program()
     );
@@ -96,6 +121,7 @@ export async function createHoyoplayLauncher({
   aria2: Aria2;
   onCheckUpdate: () => void;
 }) {
+  const baseWine = wine;
   const specs = [
     {
       id: "genshin" as const,
@@ -126,14 +152,16 @@ export async function createHoyoplayLauncher({
   const games: GameState[] = [];
 
   for (const spec of specs) {
+    const wineRef: HoyoplayWineRef = { current: baseWine };
+    const gameWine = createHoyoplayWineProxy(wineRef);
     const client = await withStorageNamespace(spec.namespace, async () =>
-      spec.createClient({ wine, aria2, locale })
+      spec.createClient({ wine: gameWine, aria2, locale })
     );
     const { UI: ConfigurationUI, config } = await withStorageNamespace(
       spec.namespace,
       async () =>
         createConfiguration({
-          wine,
+          wine: gameWine,
           locale,
           gameInstallDir: client.installDir,
           configForChannelClient: client.createConfig,
@@ -143,6 +171,9 @@ export async function createHoyoplayLauncher({
     const fps = await getFpsConfig(spec.id);
     const [fpsEnabled, setFpsEnabled] = createSignal(fps.enabled);
     const [fpsTarget, setFpsTarget] = createSignal(String(fps.target));
+    const initialWineTag = await getHoyoplayGameWineTag(spec.id);
+    const [wineTag, setWineTag] = createSignal(initialWineTag);
+    const wineOptions = await getHoyoplayWineOptions(initialWineTag);
 
     games.push({
       ...spec,
@@ -153,6 +184,10 @@ export async function createHoyoplayLauncher({
       setFpsEnabled,
       fpsTarget,
       setFpsTarget,
+      wineRef,
+      wineTag,
+      setWineTag,
+      wineOptions,
     });
   }
 
@@ -166,22 +201,33 @@ export async function createHoyoplayLauncher({
     return (async function* () {
       const fpsEnabled = game.fpsSupported && game.fpsEnabled();
       const fpsTarget = sanitizeFps(game.fpsTarget());
+      const activeWine = game.wineRef.current;
 
       if (game.id === "genshin" && fpsEnabled) {
-        yield* ensureGenshinFpsUnlocker(aria2, wine);
+        yield* ensureGenshinFpsUnlocker(aria2, activeWine);
       }
       if (game.id === "hsr" && fpsEnabled) {
         yield ["setStateText", "PATCHING"];
-        await applyHsrFpsRegistry(wine, fpsTarget);
+        await applyHsrFpsRegistry(activeWine, fpsTarget);
       }
 
       if (fpsEnabled && (game.id === "genshin" || game.id === "hsr")) {
+        const unlockerWineBin =
+          game.id === "genshin"
+            ? await getHoyoplayWineBin(game.id, game.wineTag())
+            : undefined;
+
         yield* withWineExec2Transform(
-          wine,
+          activeWine,
           env => withDxmtPreferredMaxFrameRate(env, fpsTarget),
           () => game.client.launch(game.config),
           game.id === "genshin"
-            ? () => startGenshinFpsUnlockScript(wine, fpsTarget)
+            ? () =>
+                startGenshinFpsUnlockScript(
+                  activeWine,
+                  fpsTarget,
+                  unlockerWineBin
+                )
             : undefined
         );
       } else {
@@ -204,9 +250,15 @@ export async function createHoyoplayLauncher({
 
     games.forEach(game =>
       taskQueue.next(
-        namespacedProgram(game, () => game.client.init(game.config))
+        namespacedProgram(aria2, baseWine, game, () =>
+          game.client.init(game.config)
+        )
       )
     );
+
+    async function saveWineSettings(game: GameState) {
+      await setHoyoplayGameWineTag(game.id, game.wineTag());
+    }
 
     async function saveFpsSettings(game: GameState) {
       const fps = sanitizeFps(game.fpsTarget());
@@ -217,19 +269,26 @@ export async function createHoyoplayLauncher({
     async function onPrimaryAction() {
       if (programBusy()) return;
       const game = selectedGame();
+      await saveWineSettings(game);
       await saveFpsSettings(game);
 
       if (game.client.installState() === "INSTALLED") {
         if (game.client.updateRequired()) {
-          taskQueue.next(namespacedProgram(game, () => game.client.update()));
+          taskQueue.next(
+            namespacedProgram(aria2, baseWine, game, () => game.client.update())
+          );
         } else {
-          taskQueue.next(namespacedProgram(game, () => launchProgram(game)));
+          taskQueue.next(
+            namespacedProgram(aria2, baseWine, game, () => launchProgram(game))
+          );
         }
       } else {
         const selection = await selectPath();
         if (!selection) return;
         taskQueue.next(
-          namespacedProgram(game, () => game.client.install(selection))
+          namespacedProgram(aria2, baseWine, game, () =>
+            game.client.install(selection)
+          )
         );
       }
     }
@@ -252,7 +311,11 @@ export async function createHoyoplayLauncher({
 
     function onPredownload() {
       const game = selectedGame();
-      taskQueue.next(namespacedProgram(game, () => game.client.predownload()));
+      taskQueue.next(
+        namespacedProgram(aria2, baseWine, game, () =>
+          game.client.predownload()
+        )
+      );
     }
 
     function openNativeSettings(game: GameState) {
@@ -406,6 +469,26 @@ export async function createHoyoplayLauncher({
             <ModalCloseButton />
             <ModalHeader>{selectedGame().title}</ModalHeader>
             <ModalBody>
+              <label class="hoyoplay-setting-row">
+                <span>Wine</span>
+                <select
+                  value={selectedGame().wineTag()}
+                  onInput={event =>
+                    selectedGame().setWineTag(event.currentTarget.value)
+                  }
+                >
+                  <For each={selectedGame().wineOptions}>
+                    {item => (
+                      <option value={item.tag}>{item.displayName}</option>
+                    )}
+                  </For>
+                </select>
+              </label>
+              <p class="hoyoplay-settings-muted">
+                Shared uses the launcher Wine. Per-game selections are cached
+                under <code>Application Support/Yaagl OS/hoyoplay-wines</code>{" "}
+                and still use the shared <code>wineprefix</code>.
+              </p>
               <Show
                 when={selectedGame().fpsSupported}
                 fallback={
@@ -454,9 +537,10 @@ export async function createHoyoplayLauncher({
               </Button>
               <Button
                 onClick={() =>
-                  saveFpsSettings(selectedGame()).then(() =>
-                    setSettingsOpen(false)
-                  )
+                  Promise.all([
+                    saveWineSettings(selectedGame()),
+                    saveFpsSettings(selectedGame()),
+                  ]).then(() => setSettingsOpen(false))
                 }
               >
                 Save
@@ -480,7 +564,7 @@ export async function createHoyoplayLauncher({
                     closeNativeSettings();
                     if (action === "check-integrity") {
                       taskQueue.next(
-                        namespacedProgram(game(), () =>
+                        namespacedProgram(aria2, baseWine, game(), () =>
                           game().client.checkIntegrity()
                         )
                       );
