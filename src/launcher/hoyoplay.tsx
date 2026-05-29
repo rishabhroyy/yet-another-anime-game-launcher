@@ -26,6 +26,7 @@ import { Accessor, For, JSXElement, Show, createSignal } from "solid-js";
 import { createGameInstallationDirectorySanitizer } from "../accidental-complexity";
 import { ChannelClient } from "../channel-client";
 import { Config } from "../config/config-def";
+import type { Github } from "../github";
 import { createClient as createGenshinClient } from "../clients/hk4eos";
 import { createClient as createHsrClient } from "../clients/hkrpgos";
 import { createClient as createZzzClient } from "../clients/napos";
@@ -35,21 +36,31 @@ import zzzFallbackIcon from "../icons/ZZZ_Bang.cr.png";
 import { createTaskQueueState } from "./task-queue";
 import {
   applyHsrFpsRegistry,
+  createDelayedCompanion,
   ensureGenshinFpsUnlocker,
   getFpsConfig,
   setFpsConfig,
   startGenshinFpsUnlockScript,
+  withD3DMetalPerformanceEnv,
   withDxmtPreferredMaxFrameRate,
   withWineExec2Transform,
 } from "./hoyoplay-injections";
 import {
   createHoyoplayWineProxy,
   ensureHoyoplayGameWine,
+  ensureHoyoplayD3DMetalRuntime,
+  getHoyoplayD3DMetalPath,
   getHoyoplayGameWineTag,
+  getHoyoplayGameRenderer,
   getHoyoplayWineBin,
   getHoyoplayWineOptions,
+  HOYOPLAY_RENDERER_D3DMETAL,
+  HOYOPLAY_RENDERER_DXMT,
+  setHoyoplayGameRenderer,
   setHoyoplayGameWineTag,
+  SHARED_WINE_TAG,
   type HoyoplayWineRef,
+  type HoyoplayRenderer,
 } from "./hoyoplay-wine";
 
 type HoyoplayGameId = "genshin" | "hsr" | "zzz";
@@ -72,6 +83,8 @@ type GameState = {
   wineRef: HoyoplayWineRef;
   wineTag: Accessor<string>;
   setWineTag: (value: string) => void;
+  renderer: Accessor<HoyoplayRenderer>;
+  setRenderer: (value: HoyoplayRenderer) => void;
   wineOptions: {
     tag: string;
     displayName: string;
@@ -88,6 +101,7 @@ function namespacedProgram(
   aria2: Aria2,
   baseWine: Wine,
   game: GameState,
+  d3dmetalPath: Accessor<string>,
   program: () => CommonUpdateProgram
 ): () => CommonUpdateProgram {
   return async function* () {
@@ -96,6 +110,8 @@ function namespacedProgram(
       baseWine,
       gameId: game.id,
       wineTag: game.wineTag(),
+      renderer: game.renderer(),
+      d3dmetalPath: d3dmetalPath(),
     });
     const iterator = await withStorageNamespace(game.namespace, async () =>
       program()
@@ -114,14 +130,18 @@ export async function createHoyoplayLauncher({
   wine,
   locale,
   aria2,
+  github,
   onCheckUpdate,
 }: {
   wine: Wine;
   locale: Locale;
   aria2: Aria2;
+  github: Github;
   onCheckUpdate: () => void;
 }) {
   const baseWine = wine;
+  const initialD3DMetalPath = await getHoyoplayD3DMetalPath();
+  const [d3dmetalPath, setD3DMetalPath] = createSignal(initialD3DMetalPath);
   const specs = [
     {
       id: "genshin" as const,
@@ -173,6 +193,9 @@ export async function createHoyoplayLauncher({
     const [fpsTarget, setFpsTarget] = createSignal(String(fps.target));
     const initialWineTag = await getHoyoplayGameWineTag(spec.id);
     const [wineTag, setWineTag] = createSignal(initialWineTag);
+    const initialRenderer = await getHoyoplayGameRenderer(spec.id);
+    const [renderer, setRenderer] =
+      createSignal<HoyoplayRenderer>(initialRenderer);
     const wineOptions = await getHoyoplayWineOptions(initialWineTag);
 
     games.push({
@@ -187,6 +210,8 @@ export async function createHoyoplayLauncher({
       wineRef,
       wineTag,
       setWineTag,
+      renderer,
+      setRenderer,
       wineOptions,
     });
   }
@@ -202,6 +227,23 @@ export async function createHoyoplayLauncher({
       const fpsEnabled = game.fpsSupported && game.fpsEnabled();
       const fpsTarget = sanitizeFps(game.fpsTarget());
       const activeWine = game.wineRef.current;
+      const renderer = game.renderer();
+
+      if (
+        renderer === HOYOPLAY_RENDERER_D3DMETAL &&
+        game.wineTag() === SHARED_WINE_TAG
+      ) {
+        throw new Error(
+          "D3DMetal requires a per-game Wine selection. Choose a Wine version instead of Shared launcher Wine so the shared YAAGL runtime stays untouched."
+        );
+      }
+      if (renderer === HOYOPLAY_RENDERER_D3DMETAL) {
+        const runtimePath = yield* ensureHoyoplayD3DMetalRuntime({
+          aria2,
+          github,
+        });
+        setD3DMetalPath(runtimePath);
+      }
 
       if (game.id === "genshin" && fpsEnabled) {
         yield* ensureGenshinFpsUnlocker(aria2, activeWine);
@@ -211,27 +253,56 @@ export async function createHoyoplayLauncher({
         await applyHsrFpsRegistry(activeWine, fpsTarget);
       }
 
-      if (fpsEnabled && (game.id === "genshin" || game.id === "hsr")) {
-        const unlockerWineBin =
-          game.id === "genshin"
-            ? await getHoyoplayWineBin(game.id, game.wineTag())
-            : undefined;
+      const shouldTransformEnv =
+        renderer === HOYOPLAY_RENDERER_D3DMETAL ||
+        (fpsEnabled && (game.id === "genshin" || game.id === "hsr"));
+      let fpsUnlockerEnv: Record<string, string> = {};
+      const fpsUnlockerCompanion =
+        game.id === "genshin" && fpsEnabled
+          ? createDelayedCompanion(async () => {
+              const launchEnv = fpsUnlockerEnv;
+              const unlockerWineBin = await getHoyoplayWineBin(
+                game.id,
+                game.wineTag()
+              );
+              return startGenshinFpsUnlockScript(
+                activeWine,
+                fpsTarget,
+                unlockerWineBin,
+                launchEnv
+              );
+            })
+          : undefined;
+      const launchWithEnv = () =>
+        shouldTransformEnv
+          ? withWineExec2Transform(
+              activeWine,
+              env => {
+                const d3dmetalEnv =
+                  renderer === HOYOPLAY_RENDERER_D3DMETAL
+                    ? withD3DMetalPerformanceEnv(env)
+                    : env;
+                return fpsEnabled && renderer === HOYOPLAY_RENDERER_DXMT
+                  ? withDxmtPreferredMaxFrameRate(d3dmetalEnv, fpsTarget)
+                  : d3dmetalEnv;
+              },
+              () => game.client.launch(game.config),
+              fpsUnlockerCompanion && {
+                start(env) {
+                  fpsUnlockerEnv = env;
+                  fpsUnlockerCompanion.schedule();
+                },
+                stop() {
+                  return fpsUnlockerCompanion.stop();
+                },
+              }
+            )
+          : game.client.launch(game.config);
 
-        yield* withWineExec2Transform(
-          activeWine,
-          env => withDxmtPreferredMaxFrameRate(env, fpsTarget),
-          () => game.client.launch(game.config),
-          game.id === "genshin"
-            ? () =>
-                startGenshinFpsUnlockScript(
-                  activeWine,
-                  fpsTarget,
-                  unlockerWineBin
-                )
-            : undefined
-        );
-      } else {
-        yield* game.client.launch(game.config);
+      try {
+        yield* launchWithEnv();
+      } finally {
+        await fpsUnlockerCompanion?.stop();
       }
     })();
   }
@@ -250,7 +321,7 @@ export async function createHoyoplayLauncher({
 
     games.forEach(game =>
       taskQueue.next(
-        namespacedProgram(aria2, baseWine, game, () =>
+        namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
           game.client.init(game.config)
         )
       )
@@ -258,6 +329,10 @@ export async function createHoyoplayLauncher({
 
     async function saveWineSettings(game: GameState) {
       await setHoyoplayGameWineTag(game.id, game.wineTag());
+    }
+
+    async function saveRendererSettings(game: GameState) {
+      await setHoyoplayGameRenderer(game.id, game.renderer());
     }
 
     async function saveFpsSettings(game: GameState) {
@@ -270,23 +345,28 @@ export async function createHoyoplayLauncher({
       if (programBusy()) return;
       const game = selectedGame();
       await saveWineSettings(game);
+      await saveRendererSettings(game);
       await saveFpsSettings(game);
 
       if (game.client.installState() === "INSTALLED") {
         if (game.client.updateRequired()) {
           taskQueue.next(
-            namespacedProgram(aria2, baseWine, game, () => game.client.update())
+            namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
+              game.client.update()
+            )
           );
         } else {
           taskQueue.next(
-            namespacedProgram(aria2, baseWine, game, () => launchProgram(game))
+            namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
+              launchProgram(game)
+            )
           );
         }
       } else {
         const selection = await selectPath();
         if (!selection) return;
         taskQueue.next(
-          namespacedProgram(aria2, baseWine, game, () =>
+          namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
             game.client.install(selection)
           )
         );
@@ -312,7 +392,7 @@ export async function createHoyoplayLauncher({
     function onPredownload() {
       const game = selectedGame();
       taskQueue.next(
-        namespacedProgram(aria2, baseWine, game, () =>
+        namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
           game.client.predownload()
         )
       );
@@ -489,6 +569,32 @@ export async function createHoyoplayLauncher({
                 under <code>Application Support/Yaagl OS/hoyoplay-wines</code>{" "}
                 and still use the shared <code>wineprefix</code>.
               </p>
+              <label class="hoyoplay-setting-row">
+                <span>Renderer</span>
+                <select
+                  value={selectedGame().renderer()}
+                  onInput={event =>
+                    selectedGame().setRenderer(
+                      event.currentTarget.value as HoyoplayRenderer
+                    )
+                  }
+                >
+                  <option value={HOYOPLAY_RENDERER_DXMT}>DXMT</option>
+                  <option value={HOYOPLAY_RENDERER_D3DMETAL}>
+                    D3DMetal (experimental)
+                  </option>
+                </select>
+              </label>
+              <Show
+                when={selectedGame().renderer() === HOYOPLAY_RENDERER_D3DMETAL}
+              >
+                <p class="hoyoplay-settings-muted">
+                  D3DMetal is downloaded automatically on first launch and
+                  applied only to per-game Wine, so the shared YAAGL Wine stays
+                  compatible with older launchers. Cached under{" "}
+                  <code>Application Support/Yaagl OS/hoyoplay-renderers</code>.
+                </p>
+              </Show>
               <Show
                 when={selectedGame().fpsSupported}
                 fallback={
@@ -520,8 +626,8 @@ export async function createHoyoplayLauncher({
                   />
                 </label>
                 <p class="hoyoplay-settings-muted">
-                  Off keeps DXMT at upstream 60 FPS. On sets DXMT and the game
-                  unlock method to this integer.
+                  Off keeps DXMT at upstream 60 FPS. On sets DXMT when the DXMT
+                  renderer is active, and always applies the game unlock method.
                 </p>
               </Show>
             </ModalBody>
@@ -539,6 +645,7 @@ export async function createHoyoplayLauncher({
                 onClick={() =>
                   Promise.all([
                     saveWineSettings(selectedGame()),
+                    saveRendererSettings(selectedGame()),
                     saveFpsSettings(selectedGame()),
                   ]).then(() => setSettingsOpen(false))
                 }
@@ -564,8 +671,12 @@ export async function createHoyoplayLauncher({
                     closeNativeSettings();
                     if (action === "check-integrity") {
                       taskQueue.next(
-                        namespacedProgram(aria2, baseWine, game(), () =>
-                          game().client.checkIntegrity()
+                        namespacedProgram(
+                          aria2,
+                          baseWine,
+                          game(),
+                          d3dmetalPath,
+                          () => game().client.checkIntegrity()
                         )
                       );
                     }

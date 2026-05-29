@@ -10,7 +10,6 @@ import {
   resolve,
   setKey,
   spawn,
-  wait,
   writeFile,
 } from "@utils";
 import type { Wine } from "@wine";
@@ -52,26 +51,86 @@ export async function* ensureGenshinFpsUnlocker(
 export async function startGenshinFpsUnlockScript(
   wine: Wine,
   fps: number,
-  wineBin = resolve("./wine/bin/wine")
+  wineBin = resolve("./wine/bin/wine"),
+  env: Record<string, string> = {}
 ) {
   const scriptPath = resolve("./hoyoplay_genshin_fps_unlocker.sh");
+  const logPath = resolve("./logs/hoyoplay_genshin_fps_unlocker.log");
 
   await writeFile(
     scriptPath,
     [
       "#!/bin/bash",
+      "set +e",
       `export WINEPREFIX=${shellQuote(wine.prefix)}`,
       `WINE=${shellQuote(wineBin)}`,
+      `LOG=${shellQuote(logPath)}`,
       "",
-      `"$WINE" "C:\\\\fps-unlocker\\\\unlockfps.exe" ${fps} &`,
-      "UNLOCKER_PID=$!",
-      `trap 'kill "$UNLOCKER_PID" 2>/dev/null; wait "$UNLOCKER_PID" 2>/dev/null; exit' INT TERM EXIT`,
-      `wait "$UNLOCKER_PID"`,
+      `mkdir -p "$(dirname "$LOG")"`,
+      `exec >> "$LOG" 2>&1`,
+      `echo "----- $(date) -----"`,
+      `echo "WINE=$WINE"`,
+      `echo "WINEPREFIX=$WINEPREFIX"`,
+      `env | grep -E '^(WINE|WINEMSYNC|WINEESYNC|WINEFSYNC|D3DM|DXMT|MTL|GST_|ROSETTA_)' | sort`,
+      "",
+      "UNLOCKER_PID=",
+      `cleanup() {`,
+      `  if [ -n "$UNLOCKER_PID" ]; then`,
+      `    kill "$UNLOCKER_PID" 2>/dev/null`,
+      `    wait "$UNLOCKER_PID" 2>/dev/null`,
+      `  fi`,
+      `  exit`,
+      `}`,
+      `trap cleanup INT TERM EXIT`,
+      "",
+      `game_running() {`,
+      `  "$WINE" tasklist.exe 2>/dev/null | grep -Eiq 'GenshinImpact|YuanShen'`,
+      `}`,
+      "",
+      `echo "Waiting for Genshin process..."`,
+      `for _ in $(seq 1 90); do`,
+      `  if game_running; then`,
+      `    echo "Genshin process detected."`,
+      `    break`,
+      `  fi`,
+      `  sleep 1`,
+      `done`,
+      "",
+      `echo "Waiting for game initialization before starting unlocker..."`,
+      `sleep 10`,
+      "",
+      `while game_running; do`,
+      `  echo "Starting unlockfps.exe with target ${fps}..."`,
+      `  "$WINE" "C:\\\\fps-unlocker\\\\unlockfps.exe" ${fps} &`,
+      `  UNLOCKER_PID=$!`,
+      `  while kill -0 "$UNLOCKER_PID" 2>/dev/null; do`,
+      `    if ! game_running; then`,
+      `      echo "Genshin process disappeared; stopping unlocker."`,
+      `      kill "$UNLOCKER_PID" 2>/dev/null`,
+      `      break`,
+      `    fi`,
+      `    sleep 1`,
+      `  done`,
+      `  wait "$UNLOCKER_PID" 2>/dev/null`,
+      `  EXIT_CODE=$?`,
+      `  UNLOCKER_PID=`,
+      `  echo "unlockfps.exe exited with code $EXIT_CODE."`,
+      `  if ! game_running; then`,
+      `    echo "Genshin process is gone; unlocker script exiting."`,
+      `    break`,
+      `  fi`,
+      `  echo "Genshin is still running; retrying unlocker in 5s."`,
+      `  sleep 5`,
+      `done`,
+      "",
+      `echo "Cleaning up companion Wine processes."`,
+      `"$WINE" taskkill.exe /F /IM unlockfps.exe 2>/dev/null`,
+      `"$WINE" taskkill.exe /F /IM steam.exe 2>/dev/null`,
       "",
     ].join("\n")
   );
 
-  const process = await spawn(["bash", scriptPath]);
+  const process = await spawn(["bash", scriptPath], env);
   return {
     async stop() {
       try {
@@ -88,37 +147,41 @@ export async function startGenshinFpsUnlockScript(
   };
 }
 
-export async function runWithDelayedCompanion<T>({
-  delayMs,
-  run,
-  start,
-}: {
-  delayMs: number;
-  run: () => Promise<T>;
-  start: () => Promise<{ stop(): Promise<void> }>;
-}) {
-  let done = false;
+export function createDelayedCompanion(
+  start: () => Promise<{ stop(): Promise<void> }>,
+  delayMs = 10000
+): { schedule(): void; stop(): Promise<void> } {
+  let scheduled = false;
+  let stopped = false;
   let companion: { stop(): Promise<void> } | undefined;
-  const main = run()
-    .then(
-      value => ({ value }),
-      error => ({ error })
-    )
-    .finally(() => {
-      done = true;
-    });
+  let startPromise: Promise<void> | undefined;
+  let stopPromise: Promise<void> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-  try {
-    await wait(delayMs);
-    if (!done) {
-      companion = await start();
-    }
-    const result = await main;
-    if ("error" in result) throw result.error;
-    return result.value;
-  } finally {
-    if (companion) await companion.stop();
-  }
+  return {
+    schedule() {
+      if (scheduled || stopped) return;
+      scheduled = true;
+      timer = setTimeout(() => {
+        startPromise = start().then(async started => {
+          if (stopped) {
+            await started.stop();
+          } else {
+            companion = started;
+          }
+        });
+      }, delayMs);
+    },
+    async stop() {
+      stopPromise ??= (async () => {
+        stopped = true;
+        if (timer) clearTimeout(timer);
+        await startPromise;
+        if (companion) await companion.stop();
+      })();
+      return stopPromise;
+    },
+  };
 }
 
 export async function getFpsConfig(gameId: string) {
@@ -155,23 +218,52 @@ export function withDxmtPreferredMaxFrameRate(
   };
 }
 
+export function withD3DMetalPerformanceEnv(env: Record<string, string>) {
+  const next = { ...env };
+  delete next.DXMT_CONFIG;
+  delete next.DXMT_CONFIG_FILE;
+  delete next.DXMT_ENABLE_NVEXT;
+  delete next.DXMT_LOG_PATH;
+  delete next.MTL_SHADER_VALIDATION;
+  delete next.WINEESYNC;
+  delete next.WINEFSYNC;
+  delete next.D3DM_BOUNDS_CHECK;
+  delete next.D3DM_IGNORE_D3D11_RENDER_BARRIERS;
+  delete next.D3DM_SHOW_HUD_STATS;
+  delete next.D3DM_WAIT_ON_RESET;
+
+  return {
+    ...next,
+    WINEMSYNC: "1",
+    WINEDEBUG: "-all",
+    WINE_CPU_TOPOLOGY: "8:0,1,2,3,4,5,6,7",
+    ROSETTA_ADVERTISE_AVX: "1",
+    D3DM_MULTITHREADED_INTERFACE_ENABLE: "1",
+    D3DM_ENABLE_ASYNC_COMMIT: "1",
+    D3DM_RETAIN_REFERENCES: "1",
+    GST_PLUGIN_FEATURE_RANK: "atdec:MAX,avdec_h264:MAX",
+  };
+}
+
 export async function* withWineExec2Transform(
   wine: Wine,
   transformEnv: (env: Record<string, string>) => Record<string, string>,
   program: () => CommonUpdateProgram,
-  companion?: () => Promise<{ stop(): Promise<void> }>
+  onExec2?: {
+    start(env: Record<string, string>): void;
+    stop(): Promise<void>;
+  }
 ): CommonUpdateProgram {
   const originalExec2 = wine.exec2.bind(wine);
 
   wine.exec2 = async (command, args, env, logPath) => {
-    const run = () =>
-      originalExec2(command, args, transformEnv(env ?? {}), logPath);
-    if (!companion) return run();
-    return runWithDelayedCompanion({
-      delayMs: 10000,
-      run,
-      start: companion,
-    });
+    const transformedEnv = transformEnv(env ?? {});
+    onExec2?.start(transformedEnv);
+    try {
+      return await originalExec2(command, args, transformedEnv, logPath);
+    } finally {
+      await onExec2?.stop();
+    }
   };
 
   try {

@@ -20,14 +20,34 @@ export async function createAria2({
   }
 
   async function* doStreaming(gid: string) {
+    let unknownLengthStartedAt = Date.now();
     while (true) {
       const status = await rpc.tellStatus(gid);
       if (status.status == "complete") {
         break;
       }
-      if (status.totalLength == BigInt(0)) {
+      if (status.status == "error" || status.status == "removed") {
+        throw new Error(
+          `Download failed (${status.status})${
+            status.errorMessage ? `: ${status.errorMessage}` : ""
+          }`
+        );
+      }
+      if (status.status == "paused") {
+        await rpc.unpause(gid);
+        await wait(500);
         continue;
       }
+      if (status.totalLength == BigInt(0)) {
+        if (Date.now() - unknownLengthStartedAt > 60000) {
+          throw new Error(
+            `Download did not start within 60 seconds (aria2 status: ${status.status})`
+          );
+        }
+        await wait(500);
+        continue;
+      }
+      unknownLengthStartedAt = Date.now();
       yield status;
       await wait(100);
     }
@@ -38,24 +58,43 @@ export async function createAria2({
     absDst: string;
   }) {
     const gid = await sha256_16(`${options.uri}:${options.absDst}`);
+    async function addDownload() {
+      await rpc.addUri(options.uri, {
+        gid,
+        "max-connection-per-server": 16,
+        pause: false,
+        out: options.absDst,
+        continue: false,
+        "allow-overwrite": true, // in case control file broken
+      });
+      try {
+        await rpc.unpause(gid);
+      } catch {
+        // It may already be active depending on aria2's global pause state.
+      }
+    }
+
     try {
       const status = await rpc.tellStatus(gid);
       if (status.status == "paused") {
         await rpc.unpause(gid);
       } else if (status.status == "complete") {
         return;
+      } else if (status.status == "active" || status.status == "waiting") {
+        // Continue tracking the existing download below.
+      } else if (status.status == "error" || status.status == "removed") {
+        try {
+          await rpc.removeDownloadResult(gid);
+        } catch {
+          // It may have disappeared between tellStatus and cleanup.
+        }
+        await addDownload();
       } else {
-        throw new Error("FIXME: implmenet me (aria2.ts) " + status.status);
+        throw new Error(`Download is in unexpected state: ${status.status}`);
       }
     } catch (e: unknown) {
       if (typeof e == "object" && e != null && "code" in e && e["code"] == 1) {
-        await rpc.addUri(options.uri, {
-          gid,
-          "max-connection-per-server": 16,
-          out: options.absDst,
-          continue: false,
-          "allow-overwrite": true, // in case control file broken
-        });
+        await addDownload();
       } else {
         throw e;
       }
