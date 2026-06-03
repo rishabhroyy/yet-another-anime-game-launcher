@@ -7,6 +7,7 @@ cd "${ROOT_DIR}"
 
 APP_NAME="Yaagl OS.app"
 PYTHON_VERSION_FILE="sophon_server/.python-version"
+PATCHED_SOPHON_BUILD_SCRIPT=""
 
 restore_python_version_file() {
   if git ls-files --error-unmatch "${PYTHON_VERSION_FILE}" >/dev/null 2>&1; then
@@ -14,7 +15,15 @@ restore_python_version_file() {
   fi
 }
 
-trap restore_python_version_file EXIT
+cleanup() {
+  restore_python_version_file
+
+  if [ -n "${PATCHED_SOPHON_BUILD_SCRIPT}" ]; then
+    rm -f -- "${PATCHED_SOPHON_BUILD_SCRIPT}"
+  fi
+}
+
+trap cleanup EXIT
 
 log_step() {
   printf '\n==> %s\n' "$*"
@@ -36,6 +45,31 @@ remove_glob() {
     [ -e "${artifact}" ] || continue
     remove_path "${artifact}"
   done
+}
+
+build_sophon_for_pyenv() {
+  PATCHED_SOPHON_BUILD_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/yaagl-build-sophon.XXXXXX")"
+
+  awk '
+    {
+      print
+      if ($0 == "--output-dir=./build \\") {
+        print "--static-libpython=no \\"
+      }
+    }
+  ' ./build-sophon.sh > "${PATCHED_SOPHON_BUILD_SCRIPT}"
+
+  if ! grep -q -- "--static-libpython=no" "${PATCHED_SOPHON_BUILD_SCRIPT}"; then
+    printf 'Failed to prepare pyenv-safe Sophon build script.\n' >&2
+    return 1
+  fi
+
+  bash -e "${PATCHED_SOPHON_BUILD_SCRIPT}"
+
+  if [ ! -d "sophon_server/build/server.dist" ]; then
+    printf 'Sophon build did not produce sophon_server/build/server.dist.\n' >&2
+    return 1
+  fi
 }
 
 log_step "Cleaning app build outputs"
@@ -66,7 +100,7 @@ log_step "Removing local pyenv version pin for this build"
 remove_path "${PYTHON_VERSION_FILE}"
 
 log_step "Building Sophon server"
-./build-sophon.sh
+build_sophon_for_pyenv
 
 log_step "Building Yaagl OS.app"
 YAAGL_CHANNEL_CLIENT=hoyoplay node ./build-app.js
