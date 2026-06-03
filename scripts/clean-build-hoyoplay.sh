@@ -6,6 +6,15 @@ ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT_DIR}"
 
 APP_NAME="Yaagl OS.app"
+PYTHON_VERSION_FILE="sophon_server/.python-version"
+
+restore_python_version_file() {
+  if git ls-files --error-unmatch "${PYTHON_VERSION_FILE}" >/dev/null 2>&1; then
+    git restore --source=HEAD -- "${PYTHON_VERSION_FILE}"
+  fi
+}
+
+trap restore_python_version_file EXIT
 
 log_step() {
   printf '\n==> %s\n' "$*"
@@ -52,6 +61,9 @@ remove_glob "sophon_server/"*.spec
 remove_glob "sophon_server/"*.build
 remove_glob "sophon_server/"*.dist
 remove_glob "sophon_server/"*.onefile-build
+
+log_step "Removing local pyenv version pin for this build"
+remove_path "${PYTHON_VERSION_FILE}"
 
 log_step "Building Sophon server"
 ./build-sophon.sh
