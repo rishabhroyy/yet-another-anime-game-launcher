@@ -22,9 +22,11 @@ jobs:
           UPSTREAM_TAG=$(gh release view --repo "$UPSTREAM_REPO" --json tagName -q .tagName)
           echo "upstream_tag=$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
 
-          if gh release view "$UPSTREAM_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          echo "Checking if tag $UPSTREAM_TAG exists locally..."
+          EXISTING=$(gh api "repos/${{ github.repository }}/git/ref/tags/$UPSTREAM_TAG" --jq .ref 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Already have release $UPSTREAM_TAG, skipping."
+            echo "Already have tag $UPSTREAM_TAG, skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "New upstream release: $UPSTREAM_TAG"
