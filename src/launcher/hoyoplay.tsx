@@ -5,6 +5,8 @@ import { Locale } from "@locale";
 import {
   activateStorageNamespace,
   fatal,
+  humanDuration,
+  humanFileSize,
   open,
   openDir,
   withStorageNamespace,
@@ -33,7 +35,7 @@ import { createClient as createZzzClient } from "../clients/napos";
 import genshinFallbackIcon from "../assets/Nahida.cr.png";
 import hsrFallbackIcon from "../icons/March7th.cr.png";
 import zzzFallbackIcon from "../icons/ZZZ_Bang.cr.png";
-import { createTaskQueueState } from "./task-queue";
+import { createHoyoplayTaskQueueState } from "./hoyoplay-task-queue";
 import {
   applyHsrFpsRegistry,
   createDelayedCompanion,
@@ -315,17 +317,27 @@ export async function createHoyoplayLauncher({
       createSignal<GameState>();
     const [videoLoaded, setVideoLoaded] = createSignal(false);
     let restoreNativeSettingsNamespace: (() => void) | undefined;
-    const [statusText, progress, programBusy, taskQueue] = createTaskQueueState(
-      { locale }
-    );
+    const [
+      statusText,
+      progress,
+      programBusy,
+      taskQueue,
+      downloadEta,
+      estimatedSpeedBps,
+      setPendingSizeBytes,
+    ] = createHoyoplayTaskQueueState({ locale });
 
-    games.forEach(game =>
+    games.forEach(game => {
+      // Skip the startup patch-revert/integrity-check pass for a game that's
+      // already known to need an update: repairing a stale install against
+      // the latest manifest aborts instead of prompting to update.
+      if (game.client.updateRequired()) return;
       taskQueue.next(
         namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
           game.client.init(game.config)
         )
-      )
-    );
+      );
+    });
 
     async function saveWineSettings(game: GameState) {
       await setHoyoplayGameWineTag(game.id, game.wineTag());
@@ -350,6 +362,7 @@ export async function createHoyoplayLauncher({
 
       if (game.client.installState() === "INSTALLED") {
         if (game.client.updateRequired()) {
+          setPendingSizeBytes(game.client.updateSizeBytes?.() ?? 0);
           taskQueue.next(
             namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
               game.client.update()
@@ -375,7 +388,13 @@ export async function createHoyoplayLauncher({
 
     function actionLabel(game: GameState) {
       if (game.client.installState() !== "INSTALLED") return "Get Game";
-      return game.client.updateRequired() ? locale.get("UPDATE") : "Start Game";
+      if (!game.client.updateRequired()) return "Start Game";
+      const sizeBytes = game.client.updateSizeBytes?.() ?? 0;
+      if (sizeBytes <= 0) return locale.get("UPDATE");
+      const speedBps = estimatedSpeedBps();
+      const etaSuffix =
+        speedBps > 0 ? `, ~${humanDuration(sizeBytes / speedBps)}` : "";
+      return `${locale.get("UPDATE")} (${humanFileSize(sizeBytes)}${etaSuffix})`;
     }
 
     function selectedInstallLabel() {
@@ -495,7 +514,10 @@ export async function createHoyoplayLauncher({
         <section class="hoyoplay-action-area">
           <Show when={programBusy()}>
             <div class="hoyoplay-progress">
-              <strong>{statusText()}</strong>
+              <strong>
+                {statusText()}
+                {downloadEta() ? ` — ETA ${downloadEta()}` : ""}
+              </strong>
               <Progress
                 value={progress()}
                 indeterminate={progress() === 0}

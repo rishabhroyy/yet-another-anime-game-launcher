@@ -133,6 +133,26 @@ export async function createHK4EChannelClient({
     gameVersion ?? "0.0.0"
   );
   const updateRequired = () => lt(gameCurrentVersion(), LATEST_GAME_VERSION);
+
+  // fork addition: pre-press update size estimate for the hoyoplay launcher
+  // UI. Sophon's diff size isn't in already-fetched metadata (unlike
+  // hkrpg/nap), so ask the sidecar server once at startup.
+  // Only meaningful when a patch actually exists from our version (mirrors
+  // the same check in update() below) - otherwise every file has no patch
+  // for our key, and the sidecar reports the full game's chunk size instead
+  // of an update size.
+  let updateSizeBytesCache = 0;
+  if (
+    gameInstalled &&
+    updateRequired() &&
+    UPDATABLE_VERSIONS.includes(gameCurrentVersion())
+  ) {
+    updateSizeBytesCache = await sophon
+      .getUpdateDownloadSize(releaseType, "hk4e", gameCurrentVersion())
+      .then(r => r.download_size)
+      .catch(() => 0);
+  }
+
   return {
     installState: installed,
     showPredownloadPrompt,
@@ -327,6 +347,8 @@ export async function createHK4EChannelClient({
         ];
       };
     },
+    // fork addition: pre-press update size estimate for the hoyoplay launcher UI
+    updateSizeBytes: () => updateSizeBytesCache,
   };
 }
 

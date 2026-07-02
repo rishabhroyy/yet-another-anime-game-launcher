@@ -386,6 +386,11 @@ export async function createNAPChannelClient({
         ];
       };
     },
+    // fork addition: pre-press update size estimate for the hoyoplay launcher UI
+    updateSizeBytes: () => {
+      const updateTarget = patches.find(x => x.version == gameCurrentVersion());
+      return updateTarget ? parseInt(updateTarget.game_pkgs[0]?.size) || 0 : 0;
+    },
   };
 }
 

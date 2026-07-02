@@ -2,7 +2,7 @@ import threading, os, pathlib, concurrent.futures, re, shutil
 from typing import Dict, Optional, Literal
 
 from progress_handlers import InstallProgressHandler, RepairProgressHandler, UpdateProgressHandler
-from models import InstallRequest, RepairRequest, UpdateRequest, TaskStatus, OnlineGameInfo
+from models import InstallRequest, RepairRequest, UpdateRequest, TaskStatus, OnlineGameInfo, UpdateSizeInfo
 from utils import ConnectionManager
 from sophon_api import Options, SophonClient, force_memory_release, RUN_MEMORY_HACK, WORKER_CNT
 
@@ -248,3 +248,51 @@ def fetch_online_game_info(reltype: str, game: Literal["nap", "hk4e"]) -> Online
             pre_download=False,
             error=str(e)
         )
+
+def fetch_update_download_size(reltype: str, game: Literal["nap", "hk4e"], from_version: str) -> UpdateSizeInfo:
+    """
+    fork addition: estimate the update download size for a game currently at
+    `from_version`, without touching the caller's real install directory.
+    """
+    gamedir = pathlib.Path("./sidecar/sophon_server/gametemp_updatesize")
+    try:
+        if game not in ["hk4e", "nap"]:
+            raise ValueError("Unsupported game type. Only 'hk4e' and 'nap' is supported.")
+
+        options = Options()
+        options.game_type = game
+        options.install_reltype = reltype
+        options.ignore_conditions = True
+        options.gamedir = gamedir
+        options.tempdir = gamedir
+
+        if not options.gamedir.exists():
+            options.gamedir.mkdir(parents=True, exist_ok=True)
+
+        cli = SophonClient()
+        cli.initialize(options)
+        cli.retrieve_API_keys()
+        cli.installed_ver = from_version
+        options.do_update = True  # load_manifest() also needs the diff manifest
+        cli.load_manifest("game")
+        download_size = cli.estimate_update_download_size()
+
+        del cli
+        del options
+
+        if RUN_MEMORY_HACK:
+            force_memory_release()
+
+        return UpdateSizeInfo(
+            game_type=game,
+            download_size=download_size,
+            error=None
+        )
+    except Exception as e:
+        return UpdateSizeInfo(
+            game_type="",
+            download_size=0,
+            error=str(e)
+        )
+    finally:
+        shutil.rmtree(gamedir, ignore_errors=True)

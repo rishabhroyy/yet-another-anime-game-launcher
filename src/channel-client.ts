@@ -11,6 +11,8 @@ export interface ChannelClient {
 
   showPredownloadPrompt: () => boolean;
   updateRequired: () => boolean;
+  // approximate download size in bytes for a pending update, if cheaply known
+  updateSizeBytes?: () => number;
   predownloadVersion: () => string;
 
   uiContent: {

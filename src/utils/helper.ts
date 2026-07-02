@@ -74,6 +74,18 @@ export function humanFileSize(bytes: number, si = false, dp = 1) {
   return bytes.toFixed(dp) + " " + units[u];
 }
 
+// Format a duration in seconds as human-readable text, e.g. "1h 5m", "2m 30s", "45s".
+export function humanDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "--";
+  seconds = Math.round(seconds);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 export function assertValueDefined<V>(
   value: V
 ): asserts value is NonNullable<V> {

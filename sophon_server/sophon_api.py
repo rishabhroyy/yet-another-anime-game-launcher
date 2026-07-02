@@ -863,6 +863,26 @@ class SophonClient:
 		return download_size_total
 
 
+	def estimate_update_download_size(self) -> int:
+		"""
+		fork addition: estimate the total update download size for updating
+		from self.installed_ver to the latest version.
+
+		getPatchBuild's response already carries a precomputed "stats" entry
+		per source version (compressed download size mihoyo's own launcher
+		uses) - read that directly instead of re-deriving it by walking the
+		ldiff patch/chunk manifest, which double counted files lacking an
+		exact-version patch as full re-downloads and inflated the estimate
+		by roughly 10x.
+		"""
+		self.ldiff_manifest_required()
+		stats = self.di_diffs.category_json.get("stats", {})
+		entry = stats.get(self.installed_ver)
+		if not entry:
+			raise ValueError(f"No diff stats available for version {self.installed_ver}")
+		return int(entry["compressed_size"])
+
+
 	def _download_file_resume(self, url: str, dstfile: pathlib.Path, dstsize: int):
 		filesize = try_get_file_size(dstfile)
 		if filesize == dstsize:

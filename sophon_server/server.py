@@ -94,6 +94,10 @@ async def cancel_task(task_id: str):
 async def get_online_game_info(reltype: str, game: Literal["nap", "hk4e"]) -> OnlineGameInfo:
     return fetch_online_game_info(reltype, game)
 
+@app.get("/api/game/update_size")
+async def get_update_download_size(reltype: str, game: Literal["nap", "hk4e"], from_version: str) -> UpdateSizeInfo:
+    return fetch_update_download_size(reltype, game, from_version)
+
 @app.get("/health")
 async def health_check():
     return {

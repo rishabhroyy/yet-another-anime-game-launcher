@@ -38,3 +38,9 @@ class OnlineGameInfo(BaseModel):
     pre_download: bool
     pre_download_version: Optional[str] = None
     error: Optional[str] = None
+
+
+class UpdateSizeInfo(BaseModel):
+    game_type: Literal["hk4e", "nap", ""]   # "" is for handling error cases
+    download_size: int
+    error: Optional[str] = None

@@ -43,6 +43,12 @@ export interface SophonOnlineGameInfo {
   error?: string;
 }
 
+export interface SophonUpdateSizeInfo {
+  game_type: "hk4e" | "nap" | "";
+  download_size: number;
+  error?: string;
+}
+
 export class SophonClient {
   private baseUrl: string;
   private wsUrl: string;
@@ -198,6 +204,22 @@ export class SophonClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get game info: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getUpdateDownloadSize(
+    reltype: "os" | "cn" | "bb",
+    game: string,
+    fromVersion: string
+  ): Promise<SophonUpdateSizeInfo> {
+    const response = await fetch(
+      `${this.baseUrl}/api/game/update_size?game=${game}&reltype=${reltype}&from_version=${fromVersion}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get update size: ${response.statusText}`);
     }
 
     return response.json();
