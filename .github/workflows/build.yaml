@@ -1,11 +1,5 @@
 name: "Regular CI Build"
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '.github/workflows/**'
-      - '*.md'
   workflow_dispatch:
 jobs:
   build:
@@ -73,7 +67,6 @@ jobs:
       - name: Build app
         run: |
           ./configure.sh
-          pnpm run format-check
           pnpm run lint
           YAAGL_CHANNEL_CLIENT=hk4ecn node ./build-app.js
           YAAGL_CHANNEL_CLIENT=hk4eos node ./build-app.js

@@ -60,6 +60,7 @@ import shutil # rmtree
 import subprocess # for hpatchz (ldiff)
 import sys # stdout
 import tempfile # patch extraction
+import threading
 import time
 from typing import Literal, Optional
 import uuid
@@ -329,6 +330,22 @@ class SophonClient:
 
 	new_files_to_download = set() # Update only. Relative file name
 	ldiff_files_to_remove = set() # Update only. File name (no path)
+
+	# fork addition: multiple files can share the same ldiff patch_id (see
+	# checked_patches/download_sizes_checked dedup elsewhere in this class).
+	# Since apply_or_prepare_ldiff_files now runs per-file work concurrently,
+	# guard the download-or-reuse step per patch_id so two threads sharing a
+	# patch_id can't race on the same temp file.
+	_ldiff_patch_locks: dict = {}
+	_ldiff_patch_locks_guard = threading.Lock()
+
+	def _get_ldiff_patch_lock(self, patch_id: str) -> threading.Lock:
+		with self._ldiff_patch_locks_guard:
+			lock = self._ldiff_patch_locks.get(patch_id)
+			if lock is None:
+				lock = threading.Lock()
+				self._ldiff_patch_locks[patch_id] = lock
+			return lock
 
 
 	def initialize(self, opts: Options):
@@ -1188,35 +1205,39 @@ class SophonClient:
 
 		ldiffname = ldiff_dir.joinpath(pinfo.patch_id)
 
-		if try_get_file_size(ldiffname) == pinfo.patch_size:
-			# Already downloaded. Skip.
-			# TODO: do a proper hash check
-			if progress_handler:
-				progress_handler.ldiff_download_skipped(v.filename, "already present")
-			debuglog(f"Diff '{ldiffname.name}' is already present. Skipping download.")
-			return ldiffname.name
+		# Multiple files can reference the same patch_id (shared patch blob).
+		# Serialize per patch_id so concurrent callers don't race on the same
+		# tmp_file/ldiffname path; the loser just finds it "already present".
+		with self._get_ldiff_patch_lock(pinfo.patch_id):
+			if try_get_file_size(ldiffname) == pinfo.patch_size:
+				# Already downloaded. Skip.
+				# TODO: do a proper hash check
+				if progress_handler:
+					progress_handler.ldiff_download_skipped(v.filename, "already present")
+				debuglog(f"Diff '{ldiffname.name}' is already present. Skipping download.")
+				return ldiffname.name
 
-		tmp_file = pathlib.Path(f"{ldiffname}_tmp")
+			tmp_file = pathlib.Path(f"{ldiffname}_tmp")
 
-		size_mib = bytes_to_MiB(pinfo.patch_size)
-		infolog(f"Downloading diff for '{v.filename}', {size_mib} MiB\n"
-		        f"\t -> {pinfo.patch_id}"
-		        )
+			size_mib = bytes_to_MiB(pinfo.patch_size)
+			infolog(f"Downloading diff for '{v.filename}', {size_mib} MiB\n"
+			        f"\t -> {pinfo.patch_id}"
+			        )
 
-		if OPT.disallow_download:
-			warnlog(f"NOT downloading diff for {ldiffname.name}")
-			return None
+			if OPT.disallow_download:
+				warnlog(f"NOT downloading diff for {ldiffname.name}")
+				return None
 
-		DIFF_URL_PREFIX = self.di_diffs.category_json["diff_download"]["url_prefix"]
-		self._download_file_resume(DIFF_URL_PREFIX + "/" + pinfo.patch_id, tmp_file, pinfo.patch_size)
-		debuglog("Download done")
+			DIFF_URL_PREFIX = self.di_diffs.category_json["diff_download"]["url_prefix"]
+			self._download_file_resume(DIFF_URL_PREFIX + "/" + pinfo.patch_id, tmp_file, pinfo.patch_size)
+			debuglog("Download done")
 
-		# Verify patch file size (TODO: what's the purpose of the file name?)
-		assert tmp_file.stat().st_size == pinfo.patch_size, "Corrupted patch download"
+			# Verify patch file size (TODO: what's the purpose of the file name?)
+			assert tmp_file.stat().st_size == pinfo.patch_size, "Corrupted patch download"
 
-		# Move to original ldiff file name (without _tmp)
-		# This does not need special dry-run handling (game files are not affected)
-		shutil.move(tmp_file, ldiffname)
+			# Move to original ldiff file name (without _tmp)
+			# This does not need special dry-run handling (game files are not affected)
+			shutil.move(tmp_file, ldiffname)
 		if progress_handler:
 			progress_handler.ldiff_download_complete(v.filename, pinfo.patch_size)
 		return ldiffname.name
@@ -1242,8 +1263,13 @@ class SophonClient:
 
 		gamefile = gamedir(v.filename)
 
-		# Patched file goes into the temporary directory (at first)
-		dstfile = tempdir(pathlib.Path(v.filename).name)
+		# Patched file goes into the temporary directory (at first). Suffixed
+		# with a per-call uuid: different files elsewhere in the game tree
+		# can share a basename (e.g. generic asset bundle names repeated
+		# across subdirectories), and apply_or_prepare_ldiff_files now patches
+		# files concurrently, so a name keyed only on the basename would let
+		# two threads collide on the same temp path.
+		dstfile = tempdir(f"{pathlib.Path(v.filename).name}.{uuid.uuid4().hex}")
 		dstfile.unlink(True)  # remove any existing duplicate temporary file
 
 		ldiffname = ldiff_dir.joinpath(pinfo.patch_id)
@@ -1321,8 +1347,15 @@ class SophonClient:
 		what_txt = " and patched" if OPT.predownload else ""
 
 		checked = set()
-		# Loop through the file list and download what's missing
-		for v in self.di_diffs.manifest.files:
+		files_done_lock = threading.Lock()
+
+		# fork change: was a sequential for-loop (one file at a time). Most
+		# updates are dominated by this ldiff step, so downloading/patching
+		# files one-by-one made updates far slower than installs (which
+		# already parallelize via ThreadPoolExecutor, see diff_download_new_files
+		# below). Run the same per-file work concurrently instead.
+		def process_one(v):
+			nonlocal files_done
 			# TODO: Download one file an apply the patches to all files that make use of it
 			# Motivation: less space consumption by temporary files
 
@@ -1348,11 +1381,17 @@ class SophonClient:
 					shutil.copy2(gamefile, f"{gamefile}.bak")
 					self._apply_ldiff_file(ldiff_dir, v)
 
-			files_done += 1
-			relname = pathlib.Path(v.filename).name
-			infolog(f"Progress: {files_done} / {files_total} files | Downloaded: {relname}", end="\r")
-			if files_done % 100 == 0:
-				print("")
+			with files_done_lock:
+				files_done += 1
+				relname = pathlib.Path(v.filename).name
+				infolog(f"Progress: {files_done} / {files_total} files | Downloaded: {relname}", end="\r")
+				if files_done % 100 == 0:
+					print("")
+
+		with concurrent.futures.ThreadPoolExecutor(max_workers=WORKER_CNT) as executor:
+			futures = [executor.submit(process_one, v) for v in self.di_diffs.manifest.files]
+			for future in concurrent.futures.as_completed(futures):
+				future.result()
 		infolog("\nFiles downloaded" + what_txt + ".") # keep the last "100 %" line
 
 	# Note: the downloaded ldiff files are removed by `self.remove_ldiff_files`
