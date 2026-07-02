@@ -18,7 +18,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
+      need_release: ${{ steps.check.outputs.need_release }}
+      need_merge: ${{ steps.check.outputs.need_merge }}
+      tag_exists: ${{ steps.check.outputs.tag_exists }}
+      release_exists: ${{ steps.check.outputs.release_exists }}
       upstream_tag: ${{ steps.check.outputs.upstream_tag }}
     steps:
       - name: Check for new upstream release
@@ -34,41 +37,47 @@ jobs:
 
           if [ -z "$UPSTREAM_TAG" ]; then
             echo "No upstream release found, skipping."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "need_release=false" >> "$GITHUB_OUTPUT"
+            echo "need_merge=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check 1: do we already have this tag?
+          TAG_EXISTS=false
+          RELEASE_EXISTS=false
+
           if gh api "repos/${{ github.repository }}/git/ref/tags/$UPSTREAM_TAG" >/dev/null 2>&1; then
-            echo "Tag $UPSTREAM_TAG already exists, skipping."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            TAG_EXISTS=true
           fi
-
-          # Check 2: do we already have a release with this tag?
           if gh api "repos/${{ github.repository }}/releases/tags/$UPSTREAM_TAG" >/dev/null 2>&1; then
-            echo "Release $UPSTREAM_TAG already exists, skipping."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            RELEASE_EXISTS=true
+          fi
+          echo "tag_exists=$TAG_EXISTS" >> "$GITHUB_OUTPUT"
+          echo "release_exists=$RELEASE_EXISTS" >> "$GITHUB_OUTPUT"
+
+          if [ "$TAG_EXISTS" = "true" ] && [ "$RELEASE_EXISTS" = "true" ]; then
+            echo "Tag and release $UPSTREAM_TAG already exist, nothing to do."
+            echo "need_release=false" >> "$GITHUB_OUTPUT"
+            echo "need_merge=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check 3: is the upstream tag's commit already in our main branch?
+          echo "need_release=true" >> "$GITHUB_OUTPUT"
+
+          # Is the upstream tag's commit already merged into our main branch?
+          NEED_MERGE=true
           UPSTREAM_SHA=$(gh api "repos/$UPSTREAM_REPO/git/ref/tags/$UPSTREAM_TAG" --jq .object.sha 2>/dev/null || true)
           if [ -n "$UPSTREAM_SHA" ]; then
-            OUR_COMMITS=$(gh api "repos/${{ github.repository }}/compare/${UPSTREAM_SHA}...main" --jq .status 2>/dev/null || true)
-            if [ "$OUR_COMMITS" = "ahead" ] || [ "$OUR_COMMITS" = "identical" ]; then
-              echo "Upstream commit $UPSTREAM_SHA already merged into main, skipping."
-              echo "should_build=false" >> "$GITHUB_OUTPUT"
-              exit 0
+            OUR_STATUS=$(gh api "repos/${{ github.repository }}/compare/${UPSTREAM_SHA}...main" --jq .status 2>/dev/null || true)
+            if [ "$OUR_STATUS" = "ahead" ] || [ "$OUR_STATUS" = "identical" ]; then
+              echo "Upstream commit $UPSTREAM_SHA already merged into main."
+              NEED_MERGE=false
             fi
           fi
-
-          echo "New upstream release $UPSTREAM_TAG needs building."
-          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "need_merge=$NEED_MERGE" >> "$GITHUB_OUTPUT"
 
   build:
     needs: check
-    if: needs.check.outputs.should_build == 'true'
+    if: needs.check.outputs.need_release == 'true'
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -77,12 +86,18 @@ jobs:
           fetch-depth: 0
 
       - name: Merge upstream
+        if: needs.check.outputs.need_merge == 'true'
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add upstream "https://github.com/$UPSTREAM_REPO.git" || true
           git fetch upstream --tags
-          git merge "${{ needs.check.outputs.upstream_tag }}" --no-edit
+          if ! git merge "${{ needs.check.outputs.upstream_tag }}" --no-edit; then
+            echo "::error::Merge conflict bringing in upstream tag ${{ needs.check.outputs.upstream_tag }}. Manual intervention required: resolve conflicts locally, merge, and push to main."
+            git diff --name-only --diff-filter=U | sed 's/^/::error::Conflicting file: /'
+            exit 1
+          fi
 
       - name: Install UV
         run: |
@@ -149,13 +164,19 @@ jobs:
         run: |
           zip -r "Yaagl.OS.zip" "Yaagl OS.app"
 
-      - name: Push merge commit and tag
+      - name: Push merge commit
+        if: needs.check.outputs.need_merge == 'true'
         run: |
           git push origin main
+
+      - name: Create and push tag
+        if: needs.check.outputs.tag_exists != 'true'
+        run: |
           git tag "${{ needs.check.outputs.upstream_tag }}"
           git push origin "${{ needs.check.outputs.upstream_tag }}"
 
       - name: Create release
+        if: needs.check.outputs.release_exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
