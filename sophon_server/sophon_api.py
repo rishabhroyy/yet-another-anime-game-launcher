@@ -1293,9 +1293,13 @@ class SophonClient:
 		ldiff_dir = gamedir("ldiff")
 		ldiff_dir.mkdir(exist_ok=True)
 
-		# Sum up the entire download size
+		# Sum up the entire download size, and pre-count already-done bytes so
+		# a resumed update starts the display at the correct offset rather than 0.
+		# Uses stat() only (no md5) to keep this fast; _download_ldiff_file does
+		# the proper hash checks later and re-queues mismatches as chunk downloads.
 		download_sizes_checked = set() # values: patchname
 		download_size_total = 0
+		already_done_size = 0
 		for v in self.di_diffs.manifest.files:
 			pinfo = self.get_ldiff_patchinfo(v)
 			if not pinfo:
@@ -1305,14 +1309,22 @@ class SophonClient:
 
 			download_sizes_checked.add(pinfo.patch_id)
 			download_size_total += pinfo.patch_size
-		infolog(f"Downloading ldiff files (up to {bytes_to_MiB(download_size_total)} MiB) ...")
+
+			ldiffname = ldiff_dir.joinpath(pinfo.patch_id)
+			if (try_get_file_size(ldiffname) == pinfo.patch_size or
+			        try_get_file_size(gamedir(v.filename)) == v.size):
+				already_done_size += pinfo.patch_size
+
+		infolog(f"Downloading ldiff files (up to {bytes_to_MiB(download_size_total)} MiB, {bytes_to_MiB(already_done_size)} MiB already done) ...")
 		if progress_handler:
 			progress_handler.ldiff_download_summary(
 				total_files=len(self.di_diffs.manifest.files),
 				total_size=download_size_total,
+				already_done_size=already_done_size,
 			)
 		del download_sizes_checked
 		del download_size_total
+		del already_done_size
 
 		# Not accurate when there are too many new files (chunks)
 		files_total = len(self.di_diffs.manifest.files)

@@ -193,15 +193,16 @@ class UpdateProgressHandler(InstallProgressHandler):
             }
         }, self.task_id)
 
-    def ldiff_download_summary(self, total_files: int, total_size: int):
-        self.downloaded_size = 0
+    def ldiff_download_summary(self, total_files: int, total_size: int, already_done_size: int = 0):
+        self.downloaded_size = already_done_size
         self.download_size = total_size
         self.download_speed = 0
         self.conn_manager.send_message_threadsafe({
             "type": "ldiff_download_summary",
             "task_id": self.task_id,
             "ldiff_file_count": total_files,
-            "ldiff_total_size": total_size
+            "ldiff_total_size": total_size,
+            "ldiff_already_done_size": already_done_size
         }, self.task_id)
         self._calculate_ldiff_speed()
 

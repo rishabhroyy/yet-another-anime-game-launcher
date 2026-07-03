@@ -14,6 +14,7 @@ import {
   getKeyOrDefault,
   log,
   rawString,
+  readFile,
   setKey,
   spawn,
   stats,
@@ -372,10 +373,20 @@ async function checkGameState(locale: Locale, server: Server) {
     } as const;
   }
   try {
+    let gameVersion = await getGameVersionGI(join(gameDir, server.dataDir));
+    // Cross-check config.ini and take the lower version, mirroring Python's
+    // check_config_ini logic: config.ini is written last, so after a partial
+    // update globalgamemanagers can be ahead. Using the minimum keeps
+    // updateRequired() correct even when only some files were patched.
+    try {
+      const ini = await readFile(join(gameDir, "config.ini"));
+      const m = ini.match(/game_version=(\d+\.\d+\.\d+)/);
+      if (m && lt(m[1], gameVersion)) gameVersion = m[1];
+    } catch { /* config.ini missing or unreadable — use ggm version */ }
     return {
       gameInstalled: true,
       gameInstallDir: gameDir,
-      gameVersion: await getGameVersionGI(join(gameDir, server.dataDir)),
+      gameVersion,
     } as const;
   } catch {
     return {
