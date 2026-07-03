@@ -24,7 +24,7 @@ async function* downloadAndPatch(
     predownload: false,
   });
   yield ["setUndeterminedProgress"];
-  yield ["setStateText", "ALLOCATING_FILE"];
+  yield ["setStateText", "UPDATING"];
   for await (const progress of sophon.streamOperationProgress(taskId)) {
     switch (progress.type) {
       case "delete_file":
@@ -73,15 +73,6 @@ async function* downloadAndPatch(
         ];
         break;
 
-      // fork addition: these fire as soon as the sidecar actually starts
-      // working (before the first file finishes), so the UI stops sitting
-      // on "Allocating files on disk" - a generic startup label, not a real
-      // disk-preallocation step for this sophon-based flow - for the whole
-      // first file.
-      case "ldiff_download_start":
-      case "ldiff_patch_start":
-        yield ["setStateText", "PATCHING"];
-        break;
     }
   }
   yield ["setUndeterminedProgress"];
@@ -162,7 +153,7 @@ async function* predownload(
     predownload: true,
   });
   yield ["setUndeterminedProgress"];
-  yield ["setStateText", "ALLOCATING_FILE"];
+  yield ["setStateText", "UPDATING"];
   for await (const progress of sophon.streamOperationProgress(taskId)) {
     switch (progress.type) {
       case "ldiff_download_complete":
@@ -193,11 +184,6 @@ async function* predownload(
           "setProgress",
           Number(progress.overall_progress.overall_percent),
         ];
-        break;
-
-      // fork addition: see comment in downloadAndPatch() above.
-      case "ldiff_download_start":
-        yield ["setStateText", "PATCHING"];
         break;
     }
   }
