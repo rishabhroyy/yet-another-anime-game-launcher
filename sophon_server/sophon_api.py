@@ -334,6 +334,8 @@ class SophonClient:
 	def initialize(self, opts: Options):
 		global OPT
 		OPT = opts
+		self.new_files_to_download = set()
+		self.ldiff_files_to_remove = set()
 
 		self.di_chunks.name = "[chunks]"
 		self.di_diffs.name  = "[diffs]"
@@ -1126,7 +1128,16 @@ class SophonClient:
 			progress_handler.ldiff_download_start(v.filename)
 
 		if len(v.patches) == 0:
-			# These will be downloaded by chunks.
+			# No patch from any source version — file is new in this release.
+			# Skip queuing for chunk download if it's already at the target size
+			# (e.g. unchanged files the manifest lists with empty patches, or a
+			# resumed update where this file was already fully downloaded).
+			# This prevents get_chunk_download_size() from reporting a misleading
+			# full-game total when most no-patch files are already present.
+			if try_get_file_size(gamedir(v.filename)) == v.size:
+				if progress_handler:
+					progress_handler.ldiff_download_skipped(v.filename, "already updated")
+				return None
 			fn = pathlib.Path(v.filename).name
 			debuglog(f"File '{fn}' has no patches. Need to download by chunks.")
 			if progress_handler:
@@ -1262,7 +1273,11 @@ class SophonClient:
 			done = hpatchz_patch_file(gamefile, dstfile, ldiffname, pinfo.patch_offset, pinfo.patch_length, 300)
 
 		# Verify patched file integrity (NOTE: hpatchz might already have checked it)
-		assert dstfile.stat().st_size == v.size
+		patched_size = dstfile.stat().st_size if dstfile.exists() else -1
+		if patched_size != v.size:
+			warnlog(f"Size mismatch on patched {v.filename}: {patched_size} != {v.size}. Queuing for re-download.")
+			self.new_files_to_download.add(v.filename)
+			return
 		md5 = hashlib.md5(dstfile.read_bytes()).hexdigest()
 		if md5 != v.hash:
 			if progress_handler:
@@ -1270,6 +1285,7 @@ class SophonClient:
 			warnlog(f"Checksum failed on file {v.filename}. Corrupt?")
 			# Retry by downloading from scratch
 			self.new_files_to_download.add(v.filename)
+			return
 		else:
 			infolog(f"Patched file {v.filename}")
 
