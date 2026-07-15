@@ -960,10 +960,13 @@ class SophonClient:
 
 		# Check whether the file already exists
 		if try_get_file_size(gamedir(filename)) == file_info.size:
-			if install_progress_handler:
-				install_progress_handler.file_download_skipped(file_info.filename, "exists")
-			#infolog(f"File '{filename.name}' already exists. ")
-			return True
+			md5 = hashlib.md5(gamedir(filename).read_bytes()).hexdigest()
+			if md5 == file_info.md5:
+				if install_progress_handler:
+					install_progress_handler.file_download_skipped(file_info.filename, "exists")
+				#infolog(f"File '{filename.name}' already exists. ")
+				return True
+			warnlog(f"'{filename.name}' has correct size but wrong md5 - redownloading.")
 
 		CHUNK_URL_PREFIX = self.di_chunks.category_json["chunk_download"]["url_prefix"]
 
@@ -1135,9 +1138,12 @@ class SophonClient:
 			# This prevents get_chunk_download_size() from reporting a misleading
 			# full-game total when most no-patch files are already present.
 			if try_get_file_size(gamedir(v.filename)) == v.size:
-				if progress_handler:
-					progress_handler.ldiff_download_skipped(v.filename, "already updated")
-				return None
+				md5 = hashlib.md5(gamedir(v.filename).read_bytes()).hexdigest()
+				if md5 == v.hash:
+					if progress_handler:
+						progress_handler.ldiff_download_skipped(v.filename, "already updated")
+					return None
+				warnlog(f"'{pathlib.Path(v.filename).name}' has correct size but wrong md5 - redownloading.")
 			fn = pathlib.Path(v.filename).name
 			debuglog(f"File '{fn}' has no patches. Need to download by chunks.")
 			if progress_handler:
@@ -1463,7 +1469,7 @@ class SophonClient:
 					err_cnt += 1
 					err_logs.append(str(e))
 			if err_cnt == 5:
-				raise Exception(f"Download file {v.name} failed after 3 attempts: {err_logs}")["pkg_version", ""]
+				raise Exception(f"Download file {v.filename} failed after 5 attempts: {err_logs}")
 
 		with concurrent.futures.ThreadPoolExecutor(max_workers=WORKER_CNT) as executor:
 			repair_files = [v for v in self.di_chunks.manifest.files if v.filename in self.new_files_to_download]

@@ -690,15 +690,16 @@ export async function createHoyoplayLauncher({
               return (
                 <UI
                   onClose={action => {
+                    const savedGame = game();
                     closeNativeSettings();
                     if (action === "check-integrity") {
                       taskQueue.next(
                         namespacedProgram(
                           aria2,
                           baseWine,
-                          game(),
+                          savedGame,
                           d3dmetalPath,
-                          () => game().client.checkIntegrity()
+                          () => savedGame.client.checkIntegrity()
                         )
                       );
                     }

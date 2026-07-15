@@ -277,6 +277,11 @@ export async function createHK4EChannelClient({
       batch(() => {
         setGameVersion(LATEST_GAME_VERSION);
       });
+      // Clear stale patch state so patchProgram re-applies DXMT on next launch.
+      // init() is skipped at startup when updateRequired() is true (hoyoplay.tsx
+      // guard), so a "patched" key left from a previous crashed session would
+      // cause patchProgram to bail, leaving non-DXMT wine DLLs in place.
+      await setKey("patched", null);
     },
     async *launch(config: Config) {
       // if (
