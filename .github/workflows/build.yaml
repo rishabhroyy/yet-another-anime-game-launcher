@@ -41,3 +41,4 @@ jobs:
           YAAGL_CHANNEL_CLIENT=hkrpgos node ./build-app.js
           YAAGL_CHANNEL_CLIENT=napcn node ./build-app.js
           YAAGL_CHANNEL_CLIENT=napos node ./build-app.js
+          YAAGL_CHANNEL_CLIENT=hoyoplaycn node ./build-app.js

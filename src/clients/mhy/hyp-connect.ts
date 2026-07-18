@@ -23,7 +23,7 @@ async function fetch(url: string) {
 function withLanguage(url: string, locale: Locale, server: Server) {
   return (
     url +
-    (server.id == "CN"
+    (server.id.endsWith("_cn")
       ? `&language=zh-cn`
       : `&language=${locale.get("CONTENT_LANG_ID")}`)
   );

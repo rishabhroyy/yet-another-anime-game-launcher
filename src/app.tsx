@@ -126,13 +126,25 @@ export async function createApp() {
       prefix: prefixPath,
       distro: wineStatus.wineDistribution,
     });
-    if (import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplay") {
+    if (
+      import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplay" ||
+      import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
+    ) {
+      const specs =
+        import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
+          ? (await import("./launcher/hoyoplay-cn")).HOYOPLAY_CN_GAME_SPECS
+          : undefined;
       MainApp = await createHoyoplayLauncher({
         wine,
         locale,
         aria2,
         github,
         onCheckUpdate,
+        appSupportName:
+          import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
+            ? "Yaagl CN"
+            : undefined,
+        specs,
       });
     } else {
       MainApp = await createLauncher({

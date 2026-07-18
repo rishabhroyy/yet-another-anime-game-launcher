@@ -33,6 +33,12 @@ const { IconIcns } = require("@shockpkg/icon-encoder");
       config.modes.window.title = "Yaagl OS";
       includeSophon = true;
       break;
+    case "hoyoplaycn":
+      bundleId = config.applicationId + ".cn";
+      appDistributionName = config.cli.binaryName + " CN";
+      config.modes.window.title = "Yaagl CN";
+      includeSophon = true;
+      break;
     case "hk4euniversal":
       bundleId = config.applicationId + ".uni";
       appDistributionName = config.cli.binaryName + " Uni";

@@ -65,6 +65,9 @@ export async function createUpdater(deps: { github: Github; aria2: Aria2 }) {
       case "napos":
         appBundleName = "Yaagl.ZZZ.OS.app.tar.gz";
         break;
+      case "hoyoplaycn":
+        appBundleName = "Yaagl CN.app.tar.gz";
+        break;
     }
     const sidecar = latest.assets.find(x => x.name == appBundleName);
 
@@ -109,7 +112,9 @@ export async function* downloadProgram(
     }
     await rmrf_dangerously("./sidecar");
     await mkdirp("./sidecar");
-    let topLevelDir = sidecarUrl.split("/").pop()?.replace(".tar.gz", "") || "";
+    let topLevelDir = decodeURIComponent(
+      sidecarUrl.split("/").pop()?.replace(".tar.gz", "") || ""
+    );
 
     if (topLevelDir === "Yaagl.app") topLevelDir = "Yaagl.app";
     if (topLevelDir === "Yaagl.OS.app") topLevelDir = "Yaagl OS.app";
@@ -119,6 +124,7 @@ export async function* downloadProgram(
     if (topLevelDir === "Yaagl.HSR.OS.app") topLevelDir = "Yaagl HSR OS.app";
     if (topLevelDir === "Yaagl.ZZZ.app") topLevelDir = "Yaagl ZZZ.app";
     if (topLevelDir === "Yaagl.ZZZ.OS.app") topLevelDir = "Yaagl ZZZ OS.app";
+    if (topLevelDir === "Yaagl CN.app") topLevelDir = "Yaagl CN.app";
 
     await tar_extract_directory(
       "./sidecar.tar.gz",

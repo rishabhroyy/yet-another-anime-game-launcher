@@ -2,7 +2,7 @@ name: "Build Latest (when new tag created)"
 on:
   push:
     tags:
-      - '*'
+      - "*"
 env:
   YAAGL_VERSION: ${{ github.ref_name }}
 permissions:
@@ -89,6 +89,8 @@ jobs:
           cp dist/Yaagl/resources.neu resources_napcn.neu
           YAAGL_CHANNEL_CLIENT=napos node ./build-app.js
           cp dist/Yaagl/resources.neu resources_napos.neu
+          YAAGL_CHANNEL_CLIENT=hoyoplaycn node ./build-app.js
+          cp dist/Yaagl/resources.neu resources_hoyoplaycn.neu
 
       - name: Tar app
         run: |
@@ -99,6 +101,7 @@ jobs:
           tar -zcf "Yaagl HSR OS.app.tar.gz" "Yaagl HSR OS.app"
           tar -zcf "Yaagl ZZZ.app.tar.gz" "Yaagl ZZZ.app"
           tar -zcf "Yaagl ZZZ OS.app.tar.gz" "Yaagl ZZZ OS.app"
+          tar -zcf "Yaagl CN.app.tar.gz" "Yaagl CN.app"
       - name: Generate prerelease
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -113,6 +116,7 @@ jobs:
             Yaagl HSR OS.app.tar.gz
             Yaagl ZZZ.app.tar.gz
             Yaagl ZZZ OS.app.tar.gz
+            Yaagl CN.app.tar.gz
             resources_hk4ecn.neu
             resources_hk4eos.neu
             resources_bh3glb.neu
@@ -120,3 +124,4 @@ jobs:
             resources_hkrpgos.neu
             resources_napcn.neu
             resources_napos.neu
+            resources_hoyoplaycn.neu

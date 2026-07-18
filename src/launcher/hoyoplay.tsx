@@ -29,9 +29,9 @@ import { createGameInstallationDirectorySanitizer } from "../accidental-complexi
 import { ChannelClient } from "../channel-client";
 import { Config } from "../config/config-def";
 import type { Github } from "../github";
-import { createClient as createGenshinClient } from "../clients/hk4eos";
-import { createClient as createHsrClient } from "../clients/hkrpgos";
-import { createClient as createZzzClient } from "../clients/napos";
+import { createClient as createGenshinOsClient } from "../clients/hk4eos";
+import { createClient as createHsrOsClient } from "../clients/hkrpgos";
+import { createClient as createZzzOsClient } from "../clients/napos";
 import genshinFallbackIcon from "../assets/Nahida.cr.png";
 import hsrFallbackIcon from "../icons/March7th.cr.png";
 import zzzFallbackIcon from "../icons/ZZZ_Bang.cr.png";
@@ -67,6 +67,19 @@ import {
 
 type HoyoplayGameId = "genshin" | "hsr" | "zzz";
 
+export type HoyoplayGameSpec = {
+  id: HoyoplayGameId;
+  namespace: string;
+  title: string;
+  fallbackIcon: string;
+  fpsSupported: boolean;
+  createClient: (options: {
+    wine: Wine;
+    aria2: Aria2;
+    locale: Locale;
+  }) => Promise<ChannelClient>;
+};
+
 type GameState = {
   id: HoyoplayGameId;
   namespace: string;
@@ -93,6 +106,33 @@ type GameState = {
     url: string;
   }[];
 };
+
+export const DEFAULT_HOYOPLAY_GAME_SPECS: HoyoplayGameSpec[] = [
+  {
+    id: "genshin",
+    namespace: "hpgenshin",
+    title: "Genshin Impact",
+    fallbackIcon: genshinFallbackIcon,
+    fpsSupported: true,
+    createClient: createGenshinOsClient,
+  },
+  {
+    id: "hsr",
+    namespace: "hphsr",
+    title: "Honkai: Star Rail",
+    fallbackIcon: hsrFallbackIcon,
+    fpsSupported: true,
+    createClient: createHsrOsClient,
+  },
+  {
+    id: "zzz",
+    namespace: "hpzzz",
+    title: "Zenless Zone Zero",
+    fallbackIcon: zzzFallbackIcon,
+    fpsSupported: false,
+    createClient: createZzzOsClient,
+  },
+];
 
 function sanitizeFps(value: string) {
   const fps = Math.trunc(Number(value));
@@ -134,42 +174,20 @@ export async function createHoyoplayLauncher({
   aria2,
   github,
   onCheckUpdate,
+  appSupportName = "Yaagl OS",
+  specs = DEFAULT_HOYOPLAY_GAME_SPECS,
 }: {
   wine: Wine;
   locale: Locale;
   aria2: Aria2;
   github: Github;
   onCheckUpdate: () => void;
+  appSupportName?: string;
+  specs?: HoyoplayGameSpec[];
 }) {
   const baseWine = wine;
   const initialD3DMetalPath = await getHoyoplayD3DMetalPath();
   const [d3dmetalPath, setD3DMetalPath] = createSignal(initialD3DMetalPath);
-  const specs = [
-    {
-      id: "genshin" as const,
-      namespace: "hpgenshin",
-      title: "Genshin Impact",
-      fallbackIcon: genshinFallbackIcon,
-      fpsSupported: true,
-      createClient: createGenshinClient,
-    },
-    {
-      id: "hsr" as const,
-      namespace: "hphsr",
-      title: "Honkai: Star Rail",
-      fallbackIcon: hsrFallbackIcon,
-      fpsSupported: true,
-      createClient: createHsrClient,
-    },
-    {
-      id: "zzz" as const,
-      namespace: "hpzzz",
-      title: "Zenless Zone Zero",
-      fallbackIcon: zzzFallbackIcon,
-      fpsSupported: false,
-      createClient: createZzzClient,
-    },
-  ];
 
   const games: GameState[] = [];
 
@@ -394,7 +412,9 @@ export async function createHoyoplayLauncher({
       const speedBps = estimatedSpeedBps();
       const etaSuffix =
         speedBps > 0 ? `, ~${humanDuration(sizeBytes / speedBps)}` : "";
-      return `${locale.get("UPDATE")} (${humanFileSize(sizeBytes)}${etaSuffix})`;
+      return `${locale.get("UPDATE")} (${humanFileSize(
+        sizeBytes
+      )}${etaSuffix})`;
     }
 
     function selectedInstallLabel() {
@@ -588,7 +608,8 @@ export async function createHoyoplayLauncher({
               </label>
               <p class="hoyoplay-settings-muted">
                 Shared uses the launcher Wine. Per-game selections are cached
-                under <code>Application Support/Yaagl OS/hoyoplay-wines</code>{" "}
+                under{" "}
+                <code>Application Support/{appSupportName}/hoyoplay-wines</code>{" "}
                 and still use the shared <code>wineprefix</code>.
               </p>
               <label class="hoyoplay-setting-row">
@@ -614,7 +635,10 @@ export async function createHoyoplayLauncher({
                   D3DMetal is downloaded automatically on first launch and
                   applied only to per-game Wine, so the shared YAAGL Wine stays
                   compatible with older launchers. Cached under{" "}
-                  <code>Application Support/Yaagl OS/hoyoplay-renderers</code>.
+                  <code>
+                    Application Support/{appSupportName}/hoyoplay-renderers
+                  </code>
+                  .
                 </p>
               </Show>
               <Show

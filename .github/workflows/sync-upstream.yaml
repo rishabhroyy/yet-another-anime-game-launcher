@@ -125,10 +125,12 @@ jobs:
         run: |
           ./configure.sh
           YAAGL_CHANNEL_CLIENT=hoyoplay node ./build-app.js
+          YAAGL_CHANNEL_CLIENT=hoyoplaycn node ./build-app.js
 
       - name: Package
         run: |
           zip -r "Yaagl.OS.zip" "Yaagl OS.app"
+          zip -r "Yaagl.CN.zip" "Yaagl CN.app"
 
       - name: Push merge commit
         if: needs.check.outputs.need_merge == 'true'
@@ -148,4 +150,5 @@ jobs:
         run: |
           gh release create "${{ needs.check.outputs.upstream_tag }}" \
             --title "v${{ needs.check.outputs.upstream_tag }}" \
-            Yaagl.OS.zip
+            Yaagl.OS.zip \
+            Yaagl.CN.zip
