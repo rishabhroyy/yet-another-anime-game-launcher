@@ -92,7 +92,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add upstream "https://github.com/$UPSTREAM_REPO.git" || true
-          git fetch upstream --tags
+          git fetch upstream --tags --force
           if ! git merge "${{ needs.check.outputs.upstream_tag }}" --no-edit; then
             echo "::error::Merge conflict bringing in upstream tag ${{ needs.check.outputs.upstream_tag }}. Manual intervention required: resolve conflicts locally, merge, and push to main."
             git diff --name-only --diff-filter=U | sed 's/^/::error::Conflicting file: /'
