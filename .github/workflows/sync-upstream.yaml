@@ -140,7 +140,7 @@ jobs:
       - name: Create and push tag
         if: needs.check.outputs.tag_exists != 'true'
         run: |
-          git tag "${{ needs.check.outputs.upstream_tag }}"
+          git tag -f "${{ needs.check.outputs.upstream_tag }}"
           git push origin "${{ needs.check.outputs.upstream_tag }}"
 
       - name: Create release
