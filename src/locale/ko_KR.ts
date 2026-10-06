@@ -112,6 +112,9 @@ export const ko_KR: typeof zh_CN = {
 
   SETTING_BLOCK_NET: "게임실행 문제해결(hosts 수정)",
   SETTING_TIMEOUT_FIX: "타임아웃 문제 해결",
+  SETTING_D3D12: "DirectX 12 (D3DMetal)",
+  SETTING_D3D12_RUN:
+    "DX12로 실행 (macOS 27 권장, RAM 16GB 이하 사용자에게는 권장하지 않음)",
   SETTING_LICENSES: en.SETTING_LICENSES, // TODO: Translate
   SETTING_ENABLE_HDR: "HDR 활성화",
 
@@ -124,5 +127,24 @@ export const ko_KR: typeof zh_CN = {
   UPDATE_PROMPT_IGNORE: "업데이트 무시",
   SETTING_CHECK_UPDATE: "YAAGL 업데이트 확인",
   ALREADY_LATEST_VERSION: "이미 최신 버전을 사용 중입니다.",
+  D3DMETAL_LICENSE_TITLE: "Game Porting Toolkit 4.0 beta 2 License 동의",
+  D3DMETAL_LICENSE_LOADING: "사용권 계약을 다운로드하고 검증하는 중…",
+  D3DMETAL_LICENSE_ERROR:
+    "사용권 계약을 불러오거나 검증할 수 없습니다. 설치는 시작되지 않았습니다.",
+  D3DMETAL_LICENSE_RETRY: "다시 시도",
+  D3DMETAL_LICENSE_ACKNOWLEDGE:
+    "Apple 소프트웨어 사용권 계약을 읽었으며 이에 동의합니다.",
+  D3DMETAL_LICENSE_ACCEPT: "동의하고 설치",
+
   UPDATE_LAUNCHER: "런처 업데이트",
+  GAME_VERSION_INVALID: "잘못된 게임 버전",
+  GAME_VERSION_UNREADABLE:
+    "설치된 게임 버전을 읽지 못했습니다. 게임 파일을 복구하거나 업데이트해야 할 수 있습니다.",
+  SETTING_APPLY_RECOMMENDED_SETTINGS: "권장 설정 적용",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED: "권장 설정이 적용되었습니다!",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC:
+    "변경 사항을 적용하려면 Yaagl을 다시 시작하세요.",
+  SETTING_UNINSTALL_YAAGL: "Yaagl을 완전히 제거",
+  SETTING_UNINSTALL_YAAGL_DESC:
+    "Yaagl을 완전히 제거하시겠습니까? 이렇게 하면 모든 구성, Wine 접두사 및 데이터가 삭제됩니다. 게임 파일은 삭제되지 않습니다. Yaagl이 즉시 닫힙니다. 나중에 응용 프로그램 폴더에서 Yaagl.app을 수동으로 삭제하는 것을 잊지 마십시오.",
 };

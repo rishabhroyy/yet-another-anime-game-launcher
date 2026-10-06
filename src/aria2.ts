@@ -27,10 +27,13 @@ export async function createAria2({
         break;
       }
       if (status.status == "error" || status.status == "removed") {
+        const errorDetail =
+          status.errorMessage ||
+          (status.errorCode
+            ? `Error Code ${status.errorCode}`
+            : `aria2 status: ${status.status}`);
         throw new Error(
-          `Download failed (${status.status})${
-            status.errorMessage ? `: ${status.errorMessage}` : ""
-          }`
+          `Download failed: ${errorDetail}\n\nPlease reopen the launcher to try again.`
         );
       }
       if (status.status == "paused") {
@@ -56,6 +59,7 @@ export async function createAria2({
   async function* doStreamingDownload(options: {
     uri: string;
     absDst: string;
+    checksum?: string;
   }) {
     const gid = await sha256_16(`${options.uri}:${options.absDst}`);
     async function addDownload() {
@@ -66,6 +70,7 @@ export async function createAria2({
         out: options.absDst,
         continue: false,
         "allow-overwrite": true, // in case control file broken
+        ...(options.checksum ? { checksum: options.checksum } : {}),
       });
       try {
         await rpc.unpause(gid);

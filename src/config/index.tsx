@@ -29,6 +29,7 @@ import { createGameInstallDirConfig } from "./game-install-dir";
 import { createRetinaConfig } from "./retina";
 import { createLeftCmdConfig } from "./left-cmd";
 import { createWineDistroConfig } from "./wine-distribution";
+import { createD3D12 } from "./d3d12";
 import createLocaleConfig from "./ui-locale";
 import createFPSUnlock from "./fps-unlock";
 import { exec2, getKeyOrDefault, resolve, setKey } from "../utils";
@@ -42,6 +43,7 @@ export async function createConfiguration({
   locale,
   gameInstallDir,
   configForChannelClient,
+  supportsD3d12 = false,
   onCheckUpdate,
 }: {
   wine: Wine;
@@ -51,6 +53,7 @@ export async function createConfiguration({
     locale: Locale,
     config: Partial<Config>
   ) => Promise<() => JSXElement>;
+  supportsD3d12?: boolean;
   onCheckUpdate: () => void;
 }) {
   const config: Partial<Config> = {};
@@ -58,6 +61,7 @@ export async function createConfiguration({
     locale,
     config,
   });
+  const [D3D12] = await createD3D12({ locale, config, wine });
   const [MH] = await createMetalHUDConfig({ locale, config });
   const [R] = await createRetinaConfig({ locale, config });
   const [LC] = await createLeftCmdConfig({ locale, config });
@@ -176,6 +180,65 @@ export async function createConfiguration({
                     >
                       {locale.get("SETTING_CHECK_INTEGRITY")}
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const channelClient = String(
+                          import.meta.env["YAAGL_CHANNEL_CLIENT"]
+                        );
+
+                        const currentWineState = await getKeyOrDefault(
+                          "wine_state",
+                          ""
+                        );
+                        const currentWineTag = await getKeyOrDefault(
+                          "wine_tag",
+                          ""
+                        );
+
+                        if (
+                          currentWineState !== "ready" ||
+                          currentWineTag !==
+                            "11.0-1-crossover-signed-experimental"
+                        ) {
+                          await setKey("wine_state", "update");
+                          await setKey(
+                            "wine_update_tag",
+                            "11.0-1-crossover-signed-experimental"
+                          );
+                          await setKey(
+                            "wine_update_url",
+                            "https://github.com/yaagl/anime-game-wine/releases/download/wine-crossover-11.0-1-signed/wine-crossover-11.0-1-osx64-signed.tar.xz"
+                          );
+                        }
+
+                        if (
+                          channelClient.startsWith("hk4e") ||
+                          channelClient.startsWith("nap")
+                        ) {
+                          await setKey("config_steam_patch", "true");
+                          await setKey("config_timeout_fix", "true");
+                          await setKey("config_block_net", "false");
+                        }
+
+                        if (channelClient.startsWith("hkrpg")) {
+                          await setKey("config_block_net", "true");
+                        }
+
+                        notificationService.show({
+                          status: "success",
+                          title: locale.get(
+                            "SETTING_RECOMMENDED_SETTINGS_APPLIED"
+                          ),
+                          description: locale.get(
+                            "SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC"
+                          ),
+                        });
+                      }}
+                    >
+                      {locale.get("SETTING_APPLY_RECOMMENDED_SETTINGS")}
+                    </Button>
                     <Divider />
                     <Button
                       variant="ghost"
@@ -220,12 +283,53 @@ export async function createConfiguration({
                     <Button variant="ghost" size="sm" onClick={onCheckUpdate}>
                       {locale.get("SETTING_CHECK_UPDATE")}
                     </Button>
+                    <Divider />
+                    <Button
+                      variant="ghost"
+                      colorScheme="danger"
+                      size="sm"
+                      onClick={async () => {
+                        const confirm = await Neutralino.os.showMessageBox(
+                          locale.get("SETTING_UNINSTALL_YAAGL"),
+                          locale.get("SETTING_UNINSTALL_YAAGL_DESC"),
+                          "YES_NO",
+                          "WARNING"
+                        );
+                        if (confirm === "YES") {
+                          const dataDir = await resolve("./");
+
+                          if (
+                            dataDir.length > 10 &&
+                            dataDir.includes("Application Support")
+                          ) {
+                            await exec2(
+                              ["sh", "-c", `sleep 2 && rm -rf "${dataDir}"`],
+                              {},
+                              true
+                            );
+                            await Neutralino.app.exit();
+                          } else {
+                            await Neutralino.os.showMessageBox(
+                              "Uninstall Failed",
+                              `Could not safely determine the Yaagl OS folder path (${dataDir}). Please delete it manually.`,
+                              "OK",
+                              "ERROR"
+                            );
+                          }
+                        }
+                      }}
+                    >
+                      {locale.get("SETTING_UNINSTALL_YAAGL")}
+                    </Button>
                   </VStack>
                 </HStack>
               </TabPanel>
               <TabPanel flex={1} pt={0} pb={0} h="100%">
                 <VStack spacing={"$4"} w="40%" alignItems="start">
                   <ChannelClientConfig />
+                  <Show when={supportsD3d12}>
+                    <D3D12 />
+                  </Show>
                 </VStack>
               </TabPanel>
               <TabPanel flex={1} pt={0} pb={0} h="100%">

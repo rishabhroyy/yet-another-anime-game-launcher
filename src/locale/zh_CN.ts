@@ -106,6 +106,9 @@ export const zh_CN = {
 
   SETTING_BLOCK_NET: "Launch Fix(block hosts)",
   SETTING_TIMEOUT_FIX: "Timeout Fix",
+  SETTING_D3D12: "DirectX 12 (D3DMetal)",
+  SETTING_D3D12_RUN:
+    "使用 DX12 运行（建议使用 macOS 27，不建议 RAM 为 16GB 或更少的用户使用）",
   SETTING_LICENSES: "Licenses", // TODO: Translate
   SETTING_ENABLE_HDR: "启用 HDR",
 
@@ -119,5 +122,21 @@ export const zh_CN = {
   UPDATE_PROMPT_IGNORE: "忽略此更新",
   SETTING_CHECK_UPDATE: "检查 YAAGL 更新",
   ALREADY_LATEST_VERSION: "您已在使用最新版本。",
+  D3DMETAL_LICENSE_TITLE: "Game Porting Toolkit 4.0 beta 2 许可协议",
+  D3DMETAL_LICENSE_LOADING: "正在获取并验证许可协议…",
+  D3DMETAL_LICENSE_ERROR: "无法获取或验证许可协议。安装尚未开始。",
+  D3DMETAL_LICENSE_RETRY: "重试",
+  D3DMETAL_LICENSE_ACKNOWLEDGE: "我已阅读并同意 Apple 软件许可协议。",
+  D3DMETAL_LICENSE_ACCEPT: "同意并安装",
+
   UPDATE_LAUNCHER: "更新启动器",
+  GAME_VERSION_INVALID: "游戏版本无效",
+  GAME_VERSION_UNREADABLE:
+    "无法读取已安装的游戏版本。您可能需要修复或更新游戏文件。",
+  SETTING_APPLY_RECOMMENDED_SETTINGS: "应用推荐设置",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED: "推荐设置已应用！",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC: "请关闭并重启 Yaagl 以应用更改。",
+  SETTING_UNINSTALL_YAAGL: "彻底卸载 Yaagl",
+  SETTING_UNINSTALL_YAAGL_DESC:
+    "你确定要彻底卸载 Yaagl 吗？这将删除所有配置、Wine 容器及数据。你的游戏文件不会被删除。Yaagl 将立即关闭并清除数据。请记得在此之后手动删除应用程序文件夹中的 Yaagl.app。",
 };

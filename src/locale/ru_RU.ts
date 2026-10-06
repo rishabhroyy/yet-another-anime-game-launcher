@@ -112,6 +112,9 @@ export const ru_RU: typeof zh_CN = {
 
   SETTING_BLOCK_NET: "Launch Fix(block hosts)",
   SETTING_TIMEOUT_FIX: "Timeout Fix (Исправление тайм-аута)",
+  SETTING_D3D12: "DirectX 12 (D3DMetal)",
+  SETTING_D3D12_RUN:
+    "Запуск с DX12 (рекомендуется macOS 27, не рекомендуется пользователям с 16ГБ ОЗУ или меньше)",
   SETTING_LICENSES: "Лицензии",
 
   SETTING_ENABLE_HDR: "Включить HDR",
@@ -125,5 +128,23 @@ export const ru_RU: typeof zh_CN = {
   UPDATE_PROMPT_IGNORE: "Пропустить обновление",
   SETTING_CHECK_UPDATE: "Проверить обновления YAAGL",
   ALREADY_LATEST_VERSION: "Вы уже используете последнюю версию.",
+  D3DMETAL_LICENSE_TITLE:
+    "Лицензионное соглашение Game Porting Toolkit 4.0 beta 2",
+  D3DMETAL_LICENSE_LOADING: en.D3DMETAL_LICENSE_LOADING,
+  D3DMETAL_LICENSE_ERROR: en.D3DMETAL_LICENSE_ERROR,
+  D3DMETAL_LICENSE_RETRY: en.D3DMETAL_LICENSE_RETRY,
+  D3DMETAL_LICENSE_ACKNOWLEDGE: en.D3DMETAL_LICENSE_ACKNOWLEDGE,
+  D3DMETAL_LICENSE_ACCEPT: en.D3DMETAL_LICENSE_ACCEPT,
+
   UPDATE_LAUNCHER: "Обновить лаунчер",
+  GAME_VERSION_INVALID: "Неверная версия игры",
+  GAME_VERSION_UNREADABLE:
+    "Не удалось прочитать установленную версию игры. Возможно, вам потребуется восстановить или обновить файлы игры.",
+  SETTING_APPLY_RECOMMENDED_SETTINGS: "Применить рекомендуемые настройки",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED: "Рекомендуемые настройки применены!",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC:
+    "Пожалуйста, закройте и перезапустите Yaagl, чтобы изменения вступили в силу.",
+  SETTING_UNINSTALL_YAAGL: "Полностью удалить Yaagl",
+  SETTING_UNINSTALL_YAAGL_DESC:
+    "Вы уверены, что хотите полностью удалить Yaagl? Это приведет к удалению всех конфигураций, префиксов Wine и данных. Ваши файлы игры НЕ БУДУТ удалены. Yaagl немедленно закроется. Пожалуйста, не забудьте после этого вручную удалить приложение Yaagl.app из папки Программы.",
 };

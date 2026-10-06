@@ -114,6 +114,9 @@ export const de_DE: typeof zh_CN = {
 
   SETTING_BLOCK_NET: "Launch Fix(block hosts)",
   SETTING_TIMEOUT_FIX: "Timeout Fix",
+  SETTING_D3D12: "DirectX 12 (D3DMetal)",
+  SETTING_D3D12_RUN:
+    "Mit DX12 starten (macOS 27 empfohlen, nicht empfohlen für Nutzer mit 16GB RAM oder weniger)",
   SETTING_LICENSES: en.SETTING_LICENSES, // TODO: Translate
   SETTING_ENABLE_HDR: "HDR aktivieren",
 
@@ -126,5 +129,22 @@ export const de_DE: typeof zh_CN = {
   UPDATE_PROMPT_IGNORE: "Update ignorieren",
   SETTING_CHECK_UPDATE: "Nach YAAGL-Updates suchen",
   ALREADY_LATEST_VERSION: "Sie verwenden bereits die neueste Version.",
+  D3DMETAL_LICENSE_TITLE: "Game Porting Toolkit 4.0 beta 2 Lizenzvereinbarung",
+  D3DMETAL_LICENSE_LOADING: en.D3DMETAL_LICENSE_LOADING,
+  D3DMETAL_LICENSE_ERROR: en.D3DMETAL_LICENSE_ERROR,
+  D3DMETAL_LICENSE_RETRY: en.D3DMETAL_LICENSE_RETRY,
+  D3DMETAL_LICENSE_ACKNOWLEDGE: en.D3DMETAL_LICENSE_ACKNOWLEDGE,
+  D3DMETAL_LICENSE_ACCEPT: en.D3DMETAL_LICENSE_ACCEPT,
+
   UPDATE_LAUNCHER: "Launcher aktualisieren",
+  GAME_VERSION_INVALID: "Ungültige Spielversion",
+  GAME_VERSION_UNREADABLE:
+    "Die installierte Spielversion konnte nicht gelesen werden. Möglicherweise müssen Sie Ihre Spieldateien reparieren oder aktualisieren.",
+  SETTING_APPLY_RECOMMENDED_SETTINGS: "Empfohlene Einstellungen anwenden",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED: "Empfohlene Einstellungen angewendet!",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC:
+    "Bitte schließen Sie Yaagl und starten Sie es neu, um die Änderungen zu übernehmen.",
+  SETTING_UNINSTALL_YAAGL: "Yaagl vollständig deinstallieren",
+  SETTING_UNINSTALL_YAAGL_DESC:
+    "Möchten Sie Yaagl wirklich deinstallieren? Dadurch werden alle Konfigurationen, Wine-Präfixe und Daten gelöscht. Ihre Spieldateien werden NICHT gelöscht. Yaagl wird sofort geschlossen. Bitte denken Sie daran, die Yaagl.app anschließend manuell aus Ihrem Programme-Ordner zu löschen.",
 };

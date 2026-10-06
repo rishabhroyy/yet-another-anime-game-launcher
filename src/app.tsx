@@ -28,6 +28,7 @@ import { createCommonUpdateUI } from "./common-update-ui";
 import { createLocale } from "./locale";
 import { createClient } from "./clients";
 import { createSignal, Show, JSXElement } from "solid-js";
+import type { Component } from "solid-js";
 import {
   Modal,
   ModalOverlay,
@@ -104,13 +105,21 @@ export async function createApp() {
   const wineStatus = await checkWine(github);
   const prefixPath = resolve("./wineprefix"); // CHECK: hardcoded path?
 
-  let MainApp: () => JSXElement;
+  let MainApp: Component;
 
   let showPromptSignal: (v: boolean) => void;
   let setPendingUpdateInfoSignal: (v: any) => void;
 
   const onCheckUpdate = async () => {
     const result = await createUpdater({ github, aria2 });
+    if (result.latest === undefined) {
+      await Neutralino.os.showMessageBox(
+        "Error",
+        "Failed to check for updates. Please reopen the launcher and try again.",
+        "OK"
+      );
+      return;
+    }
     if (result.latest) {
       await locale.alert("SETTING_YAAGL_VERSION", "ALREADY_LATEST_VERSION");
     } else {
