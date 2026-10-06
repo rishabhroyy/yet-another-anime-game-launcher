@@ -112,6 +112,9 @@ export const vi_VN: typeof zh_CN = {
 
   SETTING_BLOCK_NET: "Launch Fix(block hosts)",
   SETTING_TIMEOUT_FIX: "Timeout Fix",
+  SETTING_D3D12: "DirectX 12 (D3DMetal)",
+  SETTING_D3D12_RUN:
+    "Chạy với DX12 (khuyến nghị macOS 27, không khuyến nghị cho người dùng có RAM 16GB trở xuống)",
   SETTING_LICENSES: en.SETTING_LICENSES, // TODO: Translate
   SETTING_ENABLE_HDR: "Bật HDR",
 
@@ -124,5 +127,22 @@ export const vi_VN: typeof zh_CN = {
   UPDATE_PROMPT_IGNORE: "Bỏ qua cập nhật",
   SETTING_CHECK_UPDATE: "Kiểm tra cập nhật YAAGL",
   ALREADY_LATEST_VERSION: "Bạn đang sử dụng phiên bản mới nhất.",
+  D3DMETAL_LICENSE_TITLE: "Thỏa thuận cấp phép Game Porting Toolkit 4.0 beta 2",
+  D3DMETAL_LICENSE_LOADING: en.D3DMETAL_LICENSE_LOADING,
+  D3DMETAL_LICENSE_ERROR: en.D3DMETAL_LICENSE_ERROR,
+  D3DMETAL_LICENSE_RETRY: en.D3DMETAL_LICENSE_RETRY,
+  D3DMETAL_LICENSE_ACKNOWLEDGE: en.D3DMETAL_LICENSE_ACKNOWLEDGE,
+  D3DMETAL_LICENSE_ACCEPT: en.D3DMETAL_LICENSE_ACCEPT,
+
   UPDATE_LAUNCHER: "Cập nhật Launcher",
+  GAME_VERSION_INVALID: "Phiên bản trò chơi không hợp lệ",
+  GAME_VERSION_UNREADABLE:
+    "Không thể đọc phiên bản trò chơi đã cài đặt. Bạn có thể cần sửa chữa hoặc cập nhật tệp trò chơi của mình.",
+  SETTING_APPLY_RECOMMENDED_SETTINGS: "Áp dụng Cài đặt Đề xuất",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED: "Đã áp dụng cài đặt đề xuất!",
+  SETTING_RECOMMENDED_SETTINGS_APPLIED_DESC:
+    "Vui lòng đóng và khởi động lại Yaagl để áp dụng thay đổi.",
+  SETTING_UNINSTALL_YAAGL: "Gỡ cài đặt hoàn toàn Yaagl",
+  SETTING_UNINSTALL_YAAGL_DESC:
+    "Bạn có chắc chắn muốn gỡ cài đặt hoàn toàn Yaagl không? Điều này sẽ xóa toàn bộ cấu hình, tiền tố Wine và dữ liệu. Các tệp trò chơi của bạn sẽ KHÔNG bị xóa. Yaagl sẽ đóng ngay lập tức. Vui lòng nhớ xóa thủ công tệp Yaagl.app khỏi thư mục Ứng dụng của bạn sau đó.",
 };

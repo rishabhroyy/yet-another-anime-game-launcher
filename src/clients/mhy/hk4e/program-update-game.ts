@@ -72,7 +72,6 @@ async function* downloadAndPatch(
           Number(progress.overall_progress.overall_percent),
         ];
         break;
-
     }
   }
   yield ["setUndeterminedProgress"];

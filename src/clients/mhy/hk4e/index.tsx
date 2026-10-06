@@ -22,7 +22,7 @@ import {
   waitImageReady,
 } from "@utils";
 import { join } from "path-browserify";
-import { gt, lt, SemVer } from "semver";
+import { gt, lt, SemVer, valid } from "semver";
 import { Config } from "@config";
 import { checkIntegrityProgram } from "./program-check-integrity";
 import {
@@ -130,9 +130,14 @@ export async function createHK4EChannelClient({
   const [_gameInstallDir, setGameInstallDir] = createSignal(
     gameInstallDir ?? ""
   );
-  const [gameCurrentVersion, setGameVersion] = createSignal(
-    gameVersion ?? "0.0.0"
-  );
+
+  const parsedGameVersion = valid(gameVersion) ?? "0.0.0";
+  const [gameCurrentVersion, setGameVersion] = createSignal(parsedGameVersion);
+
+  if (gameInstalled && !valid(gameVersion)) {
+    await locale.alert("GAME_VERSION_INVALID", "GAME_VERSION_UNREADABLE");
+  }
+
   const updateRequired = () => lt(gameCurrentVersion(), LATEST_GAME_VERSION);
 
   // fork addition: pre-press update size estimate for the hoyoplay launcher
@@ -387,7 +392,9 @@ async function checkGameState(locale: Locale, server: Server) {
       const ini = await readFile(join(gameDir, "config.ini"));
       const m = ini.match(/game_version=(\d+\.\d+\.\d+)/);
       if (m && lt(m[1], gameVersion)) gameVersion = m[1];
-    } catch { /* config.ini missing or unreadable — use ggm version */ }
+    } catch {
+      /* config.ini missing or unreadable — use ggm version */
+    }
     return {
       gameInstalled: true,
       gameInstallDir: gameDir,
