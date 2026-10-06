@@ -392,7 +392,9 @@ async function checkGameState(locale: Locale, server: Server) {
       const ini = await readFile(join(gameDir, "config.ini"));
       const m = ini.match(/game_version=(\d+\.\d+\.\d+)/);
       if (m && lt(m[1], gameVersion)) gameVersion = m[1];
-    } catch { /* config.ini missing or unreadable — use ggm version */ }
+    } catch {
+      /* config.ini missing or unreadable — use ggm version */
+    }
     return {
       gameInstalled: true,
       gameInstallDir: gameDir,
