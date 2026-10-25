@@ -352,6 +352,17 @@
   line-height: 1.2;
 }
 
+.hoyoplay-progress-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.hoyoplay-progress-controls:empty {
+  display: none;
+}
+
 .hoyoplay-setting-row {
   min-height: 52px;
   display: flex;
