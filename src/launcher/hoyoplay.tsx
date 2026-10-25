@@ -45,6 +45,8 @@ import {
 import { getGameIcons, getUpdateSizeBytes } from "./hoyoplay-hyp";
 import { InstallOptions } from "./install-options";
 import type { SophonGame } from "../sophon/game";
+import type { SophonActivity } from "../sophon/activity";
+import { DownloadDetails } from "./download-details";
 import "./hoyoplay.css";
 import {
   applyHsrFpsRegistry,
@@ -371,6 +373,36 @@ export async function createHoyoplayLauncher({
       setPendingSizeBytes,
     ] = createHoyoplayTaskQueueState({ locale });
 
+    // The game whose program is running; it may not be the selected one.
+    const [activeGame, setActiveGame] = createSignal<GameState>();
+    const activeSophon = () => activeGame()?.client.sophon;
+    const [detailsOpen, setDetailsOpen] = createSignal(false);
+
+    function queue(game: GameState, program: () => CommonUpdateProgram) {
+      const run = namespacedProgram(
+        aria2,
+        baseWine,
+        game,
+        d3dmetalPath,
+        program
+      );
+      taskQueue.next(async function* () {
+        setActiveGame(game);
+        try {
+          yield* run();
+        } finally {
+          setActiveGame(undefined);
+          setDetailsOpen(false);
+        }
+      });
+    }
+
+    function pause() {
+      activeSophon()
+        ?.cancel()
+        .catch(error => alert("Error", String(error)));
+    }
+
     // Sophon only knows a game's state after refresh(); until then every
     // client reports updateRequired(). Refresh one game at a time (they share
     // one SophonCLI process).
@@ -378,17 +410,15 @@ export async function createHoyoplayLauncher({
     games.forEach(game => {
       const sophon = game.client.sophon;
       const ready = (refreshed = refreshed.then(() => sophon?.refresh()));
-      taskQueue.next(
-        namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-          (async function* () {
-            await ready;
-            // Skip the startup patch-revert/integrity-check pass for a game
-            // that needs an update: repairing a stale install against the
-            // latest manifest re-downloads it instead of prompting to update.
-            if (game.client.updateRequired()) return;
-            yield* game.client.init(game.config);
-          })()
-        )
+      queue(game, () =>
+        (async function* () {
+          await ready;
+          // Skip the startup patch-revert/integrity-check pass for a game
+          // that needs an update: repairing a stale install against the
+          // latest manifest re-downloads it instead of prompting to update.
+          if (game.client.updateRequired()) return;
+          yield* game.client.init(game.config);
+        })()
       );
       if (sophon) {
         let latest = 0;
@@ -453,40 +483,26 @@ export async function createHoyoplayLauncher({
       if (game.client.installState() === "INSTALLED") {
         if (game.client.updateRequired()) {
           setPendingSizeBytes(game.updateSizeBytes());
-          taskQueue.next(
-            namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-              (async function* () {
-                yield* game.client.update();
-                // A "patched" flag left by a crashed session would make the
-                // next launch skip re-applying patches (DXMT) to the updated
-                // files, since init() is skipped while an update is pending.
-                await setKey("patched", null);
-              })()
-            )
+          queue(game, () =>
+            (async function* () {
+              yield* game.client.update();
+              // A "patched" flag left by a crashed session would make the
+              // next launch skip re-applying patches (DXMT) to the updated
+              // files, since init() is skipped while an update is pending.
+              await setKey("patched", null);
+            })()
           );
         } else {
-          taskQueue.next(
-            namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-              launchProgram(game)
-            )
-          );
+          queue(game, () => launchProgram(game));
         }
       } else if (sophon?.action()?.action === "resumeInstall") {
-        taskQueue.next(
-          namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-            sophon.performAction()
-          )
-        );
+        queue(game, () => sophon.performAction());
       } else if (sophon) {
         openInstallDialog(game);
       } else {
         const selection = await selectPath();
         if (!selection) return;
-        taskQueue.next(
-          namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-            game.client.install(selection)
-          )
-        );
+        queue(game, () => game.client.install(selection));
       }
     }
 
@@ -527,11 +543,7 @@ export async function createHoyoplayLauncher({
 
     function onPredownload() {
       const game = selectedGame();
-      taskQueue.next(
-        namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-          game.client.predownload()
-        )
-      );
+      queue(game, () => game.client.predownload());
     }
 
     function openNativeSettings(game: GameState) {
@@ -646,6 +658,42 @@ export async function createHoyoplayLauncher({
                   borderRadius={8}
                 />
               </Progress>
+              <div class="hoyoplay-progress-controls">
+                <Show when={statusText() === locale.get("GAME_RUNNING")}>
+                  <Button
+                    size="xs"
+                    colorScheme="danger"
+                    onClick={() =>
+                      activeGame()
+                        ?.wineRef.current.killServer()
+                        .catch(() => undefined)
+                    }
+                  >
+                    {locale.get("FORCE_CLOSE")}
+                  </Button>
+                </Show>
+                <Show when={activeSophon()?.activity()}>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => setDetailsOpen(true)}
+                  >
+                    Stats for nerds
+                  </Button>
+                </Show>
+                <Show when={activeSophon()?.operationRunning()}>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    disabled={activeSophon()?.cancelling()}
+                    onClick={pause}
+                  >
+                    {locale.get(
+                      activeSophon()?.cancelling() ? "PAUSING" : "PAUSE"
+                    )}
+                  </Button>
+                </Show>
+              </div>
             </div>
           </Show>
           <Show
@@ -814,15 +862,7 @@ export async function createHoyoplayLauncher({
                     const savedGame = game();
                     closeNativeSettings();
                     if (action === "check-integrity") {
-                      taskQueue.next(
-                        namespacedProgram(
-                          aria2,
-                          baseWine,
-                          savedGame,
-                          d3dmetalPath,
-                          () => savedGame.client.checkIntegrity()
-                        )
-                      );
+                      queue(savedGame, () => savedGame.client.checkIntegrity());
                     }
                   }}
                 />
@@ -849,19 +889,30 @@ export async function createHoyoplayLauncher({
                   const sophon = savedGame.client.sophon as SophonGame;
                   const directory = sophon.installDir();
                   closeInstallDialog();
-                  taskQueue.next(
-                    namespacedProgram(
-                      aria2,
-                      baseWine,
-                      savedGame,
-                      d3dmetalPath,
-                      () => sophon.install(directory, selection)
-                    )
-                  );
+                  queue(savedGame, () => sophon.install(directory, selection));
                 }}
               />
             </Modal>
           )}
+        </Show>
+        <Show when={detailsOpen() && activeSophon()?.activity()}>
+          <Modal
+            opened
+            onClose={() => setDetailsOpen(false)}
+            size="full"
+            scrollBehavior="inside"
+            motionPreset="none"
+          >
+            <ModalOverlay />
+            <DownloadDetails
+              locale={locale}
+              activity={activeSophon()?.activity() as SophonActivity}
+              history={activeSophon()?.history() ?? []}
+              cancelling={activeSophon()?.cancelling() ?? false}
+              onClose={() => setDetailsOpen(false)}
+              onCancel={pause}
+            />
+          </Modal>
         </Show>
       </div>
     );
