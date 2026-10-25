@@ -2,10 +2,12 @@ import { JSXElement } from "solid-js";
 import { CommonUpdateProgram } from "./common-update-ui";
 import { Config } from "./config";
 import { Locale } from "./locale";
+import type { SophonGame } from "./sophon/game";
 
 export type ChannelClientInstallState = "INSTALLED" | "NOT_INSTALLED";
 
 export interface ChannelClient {
+  sophon?: SophonGame;
   installState: () => ChannelClientInstallState;
   installDir: () => string;
   /** Enables the shared DX12 toggle only when this client supports DX12 launch. */
@@ -13,8 +15,6 @@ export interface ChannelClient {
 
   showPredownloadPrompt: () => boolean;
   updateRequired: () => boolean;
-  // approximate download size in bytes for a pending update, if cheaply known
-  updateSizeBytes?: () => number;
   predownloadVersion: () => string;
 
   uiContent: {

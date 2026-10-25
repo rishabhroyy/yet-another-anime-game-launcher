@@ -4,7 +4,10 @@ import {
   FormLabel,
   Input,
   InputGroup,
+  InputRightElement,
+  Tooltip,
 } from "@hope-ui/solid";
+import { open } from "@utils";
 import { createSignal } from "solid-js";
 import { Locale } from "../locale";
 import { Config, NOOP } from "./config-def";
@@ -30,9 +33,17 @@ export async function createGameInstallDirConfig({
           <FormLabel>{locale.get("SETTING_GAME_INSTALL_DIR")}</FormLabel>
           <InputGroup>
             <Input disabled readOnly value={gameInstallDir()} />
-            {/* <InputRightElement cursor={"pointer"} onClick={() => {}}>
-                    <IconSetting boxSize="20px" color={"$blackAlpha9"} />
-                  </InputRightElement> */}
+            <Tooltip label={locale.get("SETTING_OPEN_GAME_INSTALL_DIR")}>
+              <InputRightElement
+                cursor={"pointer"}
+                onClick={() => open(gameInstallDir())}
+                borderRadius="$md"
+                _hover={{ bg: "$neutral4" }}
+                transition="all 0.2s"
+              >
+                <IconSetting boxSize="20px" color={"$neutral11"} />
+              </InputRightElement>
+            </Tooltip>
           </InputGroup>
         </FormControl>
       );

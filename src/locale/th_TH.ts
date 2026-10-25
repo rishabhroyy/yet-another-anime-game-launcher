@@ -2,9 +2,15 @@ import { zh_CN } from "./zh_CN";
 import { en } from "@locale/en";
 
 export const th_TH: typeof zh_CN = {
+  CHECKING_GAME: "กำลังตรวจสอบเกม",
+  RESUME: "ดำเนินการต่อ",
+  PAUSE: "หยุดชั่วคราว",
+  PAUSING: "กำลังหยุดชั่วคราว…",
+  PAUSED: "หยุดชั่วคราวแล้ว",
+  TIME_REMAINING: "เหลือ {0} วินาที",
   CONTENT_LANG_ID: "th-th",
   LAUNCH: "เริ่มเกม",
-  INSTALL: "ติดตั้งเกม",
+  INSTALL: "ดาวน์โหลด",
   UPDATING: "กำลังอัปเดต",
   DOWNLOADING: "กำลังดาวน์โหลด",
   FIXING_FILES: "กำลังซ่อมแซมไฟล์เกม {0}/{1}",
@@ -144,4 +150,10 @@ export const th_TH: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "ถอนการติดตั้ง Yaagl อย่างสมบูรณ์",
   SETTING_UNINSTALL_YAAGL_DESC:
     "คุณแน่ใจหรือไม่ว่าต้องการถอนการติดตั้ง Yaagl อย่างสมบูรณ์ การดำเนินการนี้จะลบการกำหนดค่า, Wine prefixes และข้อมูลทั้งหมด ไฟล์เกมของคุณจะไม่ถูกลบ Yaagl จะปิดทันที โปรดจำไว้ว่าต้องลบแอป Yaagl.app ออกจากโฟลเดอร์ Applications ของคุณด้วยตนเองในภายหลัง",
+  SETUP_TITLE: "การตั้งค่าเริ่มต้น",
+  SETUP_DESC: "เลือกวิธีที่คุณต้องการตั้งค่าระบบ Wine ก่อนดาวน์โหลด",
+  SETUP_RECOMMENDED: "การตั้งค่าที่แนะนำ",
+  SETUP_CUSTOM: "การตั้งค่าแบบกำหนดเอง",
+  SETUP_CONTINUE: "ดำเนินการต่อ",
+  FORCE_CLOSE: "บังคับปิด",
 };

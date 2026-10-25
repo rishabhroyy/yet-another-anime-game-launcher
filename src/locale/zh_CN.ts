@@ -1,9 +1,15 @@
 import { SuppportedContentLangId } from "./supported-content-lang-id";
 
 export const zh_CN = {
+  CHECKING_GAME: "正在检查游戏",
+  RESUME: "继续",
+  PAUSE: "暂停",
+  PAUSING: "正在暂停…",
+  PAUSED: "已暂停",
+  TIME_REMAINING: "剩余 {0} 秒",
   CONTENT_LANG_ID: "zh-cn" as SuppportedContentLangId,
   LAUNCH: "开始游戏",
-  INSTALL: "安装游戏",
+  INSTALL: "下载",
   UPDATING: "正在更新",
   DOWNLOADING: "正在下载",
   FIXING_FILES: "正在修复第{0}个文件，共{1}个",
@@ -139,4 +145,10 @@ export const zh_CN = {
   SETTING_UNINSTALL_YAAGL: "彻底卸载 Yaagl",
   SETTING_UNINSTALL_YAAGL_DESC:
     "你确定要彻底卸载 Yaagl 吗？这将删除所有配置、Wine 容器及数据。你的游戏文件不会被删除。Yaagl 将立即关闭并清除数据。请记得在此之后手动删除应用程序文件夹中的 Yaagl.app。",
+  SETUP_TITLE: "初始设置",
+  SETUP_DESC: "在下载环境文件之前，请选择您的配置方式。",
+  SETUP_RECOMMENDED: "推荐设置",
+  SETUP_CUSTOM: "自定义设置",
+  SETUP_CONTINUE: "继续并安装",
+  FORCE_CLOSE: "强制关闭",
 };

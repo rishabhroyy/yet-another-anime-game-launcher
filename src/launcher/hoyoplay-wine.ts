@@ -55,6 +55,7 @@ export function createHoyoplayWineProxy(ref: HoyoplayWineRef): Awaited<Wine> {
     exec: (...args) => ref.current.exec(...args),
     exec2: (...args) => ref.current.exec2(...args),
     waitUntilServerOff: () => ref.current.waitUntilServerOff(),
+    killServer: () => ref.current.killServer(),
     cmd: (...args) => ref.current.cmd(...args),
     toWinePath: path => ref.current.toWinePath(path),
     prefix: ref.current.prefix,
@@ -624,6 +625,12 @@ export async function createWineFromRoot({
     });
   }
 
+  async function killServer() {
+    return await exec2([join(dirname(loaderBin), "wineserver"), "-k"], {
+      ...getEnvironmentVariables(),
+    });
+  }
+
   function toWinePath(absPath: string) {
     return "Z:" + `${absPath}`.replaceAll("/", "\\");
   }
@@ -705,6 +712,7 @@ reg add "HKEY_LOCAL_MACHINE\\SOFTWARE\\NVIDIA Corporation\\Global\\NGXCore" /v F
     exec: wineExec,
     exec2: wineExec2,
     waitUntilServerOff,
+    killServer,
     cmd: (command: string, args: string[]) =>
       wineExec("cmd", [command, ...args]),
     toWinePath,

@@ -2,9 +2,15 @@ import { zh_CN } from "./zh_CN";
 import { en } from "./en";
 
 export const ja_JP: typeof zh_CN = {
+  CHECKING_GAME: "ゲームを確認中",
+  RESUME: "再開",
+  PAUSE: "一時停止",
+  PAUSING: "一時停止中…",
+  PAUSED: "一時停止中",
+  TIME_REMAINING: "残り {0} 秒",
   CONTENT_LANG_ID: "ja-jp",
   LAUNCH: "ゲーム開始",
-  INSTALL: "ゲームをインストール",
+  INSTALL: "ダウンロード",
   UPDATING: "更新中",
   DOWNLOADING: "ダウンロード中",
   FIXING_FILES: "ゲームファイルを修復中{0}/{1}",
@@ -147,4 +153,11 @@ export const ja_JP: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "Yaaglを完全にアンインストール",
   SETTING_UNINSTALL_YAAGL_DESC:
     "Yaaglを完全にアンインストールしてもよろしいですか？これにより、すべての設定、Wine プレフィックス、およびデータが削除されます。ゲームファイルは削除されません。Yaaglは直ちに終了します。後でアプリケーションフォルダから Yaagl.app を手動で削除することを忘れないでください。",
+  SETUP_TITLE: "初期設定",
+  SETUP_DESC:
+    "環境ファイルをダウンロードする前に、設定方法を選択してください。",
+  SETUP_RECOMMENDED: "推奨設定",
+  SETUP_CUSTOM: "カスタム設定",
+  SETUP_CONTINUE: "続行",
+  FORCE_CLOSE: "強制終了",
 };

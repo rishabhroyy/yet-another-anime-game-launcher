@@ -2,9 +2,15 @@ import { en } from "./en";
 import { zh_CN } from "./zh_CN";
 
 export const vi_VN: typeof zh_CN = {
+  CHECKING_GAME: "Đang kiểm tra trò chơi",
+  RESUME: "Tiếp tục",
+  PAUSE: "Tạm dừng",
+  PAUSING: "Đang tạm dừng…",
+  PAUSED: "Đã tạm dừng",
+  TIME_REMAINING: "Còn {0} giây",
   CONTENT_LANG_ID: "vi-vn",
   LAUNCH: "Khởi động trò chơi",
-  INSTALL: "Cài đặt trò chơi",
+  INSTALL: "Tải xuống",
   UPDATING: "Đang cập nhật",
   DOWNLOADING: "Đang tải",
   FIXING_FILES: "Đang sửa tệp trò chơi {0}/{1}",
@@ -145,4 +151,11 @@ export const vi_VN: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "Gỡ cài đặt hoàn toàn Yaagl",
   SETTING_UNINSTALL_YAAGL_DESC:
     "Bạn có chắc chắn muốn gỡ cài đặt hoàn toàn Yaagl không? Điều này sẽ xóa toàn bộ cấu hình, tiền tố Wine và dữ liệu. Các tệp trò chơi của bạn sẽ KHÔNG bị xóa. Yaagl sẽ đóng ngay lập tức. Vui lòng nhớ xóa thủ công tệp Yaagl.app khỏi thư mục Ứng dụng của bạn sau đó.",
+  SETUP_TITLE: "Thiết lập ban đầu",
+  SETUP_DESC:
+    "Chọn cách bạn muốn cấu hình môi trường Wine trước khi tải xuống.",
+  SETUP_RECOMMENDED: "Cài đặt đề xuất",
+  SETUP_CUSTOM: "Cài đặt tùy chỉnh",
+  SETUP_CONTINUE: "Tiếp tục",
+  FORCE_CLOSE: "Buộc đóng",
 };

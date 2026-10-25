@@ -2,9 +2,15 @@ import { en } from "./en";
 import { zh_CN } from "./zh_CN";
 
 export const ru_RU: typeof zh_CN = {
+  CHECKING_GAME: "Проверка игры",
+  RESUME: "Продолжить",
+  PAUSE: "Пауза",
+  PAUSING: "Приостановка…",
+  PAUSED: "На паузе",
+  TIME_REMAINING: "Осталось {0} с",
   CONTENT_LANG_ID: "ru-ru",
   LAUNCH: "Запустить игру",
-  INSTALL: "Установить игру",
+  INSTALL: "Скачать",
   UPDATING: "Обновление",
   DOWNLOADING: "Загрузка",
   FIXING_FILES: "Исправление игровых файлов {0}/{1}",
@@ -147,4 +153,10 @@ export const ru_RU: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "Полностью удалить Yaagl",
   SETTING_UNINSTALL_YAAGL_DESC:
     "Вы уверены, что хотите полностью удалить Yaagl? Это приведет к удалению всех конфигураций, префиксов Wine и данных. Ваши файлы игры НЕ БУДУТ удалены. Yaagl немедленно закроется. Пожалуйста, не забудьте после этого вручную удалить приложение Yaagl.app из папки Программы.",
+  SETUP_TITLE: "Начальная настройка",
+  SETUP_DESC: "Выберите способ настройки окружения Wine перед загрузкой.",
+  SETUP_RECOMMENDED: "Рекомендуемые настройки",
+  SETUP_CUSTOM: "Пользовательские настройки",
+  SETUP_CONTINUE: "Продолжить",
+  FORCE_CLOSE: "Принудительно закрыть",
 };

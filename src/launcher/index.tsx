@@ -18,7 +18,7 @@ import {
   ProgressIndicator,
 } from "@hope-ui/solid";
 import { createIcon } from "@hope-ui/solid";
-import { Show, createSignal } from "solid-js";
+import { Show, createEffect, createSignal } from "solid-js";
 import { Locale } from "@locale";
 import { createConfiguration } from "@config";
 import { Github } from "../github";
@@ -26,6 +26,39 @@ import { createGameInstallationDirectorySanitizer } from "../accidental-complexi
 import { ChannelClient } from "../channel-client";
 import { createTaskQueueState } from "./task-queue";
 import { Wine } from "@wine";
+import { canPlay } from "../sophon/game";
+import { DownloadDetails } from "./download-details";
+import type { SophonActivity } from "../sophon/activity";
+import { InstallOptions } from "./install-options";
+
+function ActionIcon(props: { action: string }) {
+  const paths: Record<string, string> = {
+    play: "M8 5v14l11-7z",
+    resume: "M5 5v14M10 5v14l10-7z",
+    install: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
+    update: "M20 7a9 9 0 1 0 1 8M20 3v5h-5",
+    retry: "M20 7a9 9 0 1 0 1 8M20 3v5h-5",
+    checking: "M20 7a9 9 0 1 0 1 8M20 3v5h-5",
+    details: "M4 20h16M7 16v-4m5 4V4m5 12V8",
+    pause: "M8 5v14M16 5v14",
+  };
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      style={{ "margin-right": "8px" }}
+    >
+      <path d={paths[props.action]} />
+    </svg>
+  );
+}
 
 const IconSetting = createIcon({
   viewBox: "0 0 1024 1024",
@@ -45,6 +78,7 @@ export async function createLauncher({
   locale,
   github,
   channelClient: {
+    sophon,
     installDir,
     installState,
     supportsD3d12,
@@ -77,12 +111,18 @@ export async function createLauncher({
   channelClient: ChannelClient;
   onCheckUpdate: () => void;
 }) {
+  async function reportError(error: unknown) {
+    if (sophon)
+      await Neutralino.os.showMessageBox("Error", String(error), "OK");
+    else await fatal(error);
+  }
   const { UI: ConfigurationUI, config } = await createConfiguration({
     wine,
     locale,
     gameInstallDir: installDir,
     configForChannelClient: createConfig,
     supportsD3d12,
+    sophon,
     onCheckUpdate,
   });
 
@@ -99,7 +139,7 @@ export async function createLauncher({
     const bw = 136;
 
     const [statusText, progress, programBusy, taskQueue] = createTaskQueueState(
-      { locale }
+      { locale, onError: sophon ? reportError : undefined }
     );
     taskQueue.next(() => init(config));
 
@@ -108,14 +148,50 @@ export async function createLauncher({
       nonUrgentProgress,
       nonUrgentProgramBusy,
       nonUrgentTaskQueue,
-    ] = createTaskQueueState({ locale });
+    ] = createTaskQueueState({
+      locale,
+      onError: sophon ? reportError : undefined,
+    });
 
     const { isOpen, onOpen, onClose } = createDisclosure();
+    const details = createDisclosure();
+    const [installDialog, setInstallDialog] = createSignal<
+      "install" | "verify"
+    >();
 
     const [videoLoaded, setVideoLoaded] = createSignal(false);
+    let video: HTMLVideoElement | undefined;
+    createEffect(() => {
+      if (!videoLoaded()) return;
+      if (details.isOpen() || installDialog()) video?.pause();
+      else video?.play().catch(() => undefined);
+    });
+
+    async function chooseGameDirectory() {
+      const directory = await selectPath();
+      if (directory) await sophon?.selectDirectory(directory);
+    }
 
     async function onButtonClick() {
       if (programBusy()) return; // ignore
+      if (sophon) {
+        if (!installDir()) {
+          await chooseGameDirectory();
+          return;
+        }
+        if (sophon.error()) {
+          await sophon.refresh();
+          if (sophon.error()) throw new Error(sophon.error());
+        }
+        if (sophon.action()?.action === "install") {
+          setInstallDialog("install");
+        } else if (canPlay(sophon.action())) {
+          taskQueue.next(() => launch(config));
+        } else {
+          taskQueue.next(() => sophon.performAction());
+        }
+        return;
+      }
       if (installState() == "INSTALLED") {
         if (updateRequired() == true) {
           taskQueue.next(update);
@@ -129,6 +205,41 @@ export async function createLauncher({
       }
     }
 
+    function primaryAction() {
+      if (sophon?.loading()) return "checking";
+      if (sophon?.error()) return "retry";
+      if (sophon) {
+        const next = sophon.action();
+        if (canPlay(next)) return "play";
+        if (next?.action === "resumeInstall" || next?.action === "resumeUpdate")
+          return "resume";
+        if (next?.action === "update" || next?.sourceVersion) return "update";
+        return "install";
+      }
+      return installState() === "INSTALLED"
+        ? updateRequired()
+          ? "update"
+          : "play"
+        : "install";
+    }
+
+    function primaryLabel() {
+      switch (primaryAction()) {
+        case "checking":
+          return locale.get("CHECKING_GAME");
+        case "retry":
+          return locale.get("D3DMETAL_LICENSE_RETRY");
+        case "resume":
+          return locale.get("RESUME");
+        case "update":
+          return locale.get("UPDATE");
+        case "play":
+          return locale.get("LAUNCH");
+        default:
+          return locale.get("INSTALL");
+      }
+    }
+
     return (
       <div
         class="background"
@@ -138,6 +249,7 @@ export async function createLauncher({
       >
         <Show when={background_video}>
           <video
+            ref={video}
             class="background-video"
             src={background_video}
             autoplay
@@ -173,10 +285,11 @@ export async function createLauncher({
         ) : null}
         {iconImage ? (
           <div
-            onClick={() => open(url)}
-            role="button"
+            onClick={() => url && open(url)}
+            role={url ? "button" : undefined}
             class="version-icon"
             style={{
+              cursor: url ? "pointer" : "default",
               "background-image": `url(${iconImage})`,
               height: `${bh}px`,
               width: `${bw}px`, //fixme: responsive size
@@ -192,11 +305,17 @@ export async function createLauncher({
             columnGap="10vw"
             alignItems={"flex-end"}
           >
-            <Box flex={1}>
+            <Box flex={1} minWidth={0}>
+              <Show when={sophon?.error()}>
+                <p role="alert">{sophon?.error()}</p>
+              </Show>
               <Show when={nonUrgentProgramBusy()}>
                 <h3
                   style={
-                    "text-shadow: 1px 1px 2px #333;color:white;margin-bottom:5px;margin-top:8px"
+                    (sophon && !background
+                      ? ""
+                      : "text-shadow: 1px 1px 2px #333;color:white;") +
+                    "margin-bottom:5px;margin-top:8px"
                   }
                 >
                   {nonUrgentStatusText()}
@@ -205,104 +324,258 @@ export async function createLauncher({
                   value={nonUrgentProgress()}
                   indeterminate={nonUrgentProgress() == 0}
                   size="sm"
-                  borderRadius={8}
+                  borderRadius={12}
                 >
                   <ProgressIndicator
                     style={"transition: none;"}
-                    borderRadius={8}
+                    borderRadius={12}
                   ></ProgressIndicator>
                 </Progress>
               </Show>
               <Show when={programBusy()}>
-                <h3
-                  style={
-                    "text-shadow: 1px 1px 2px #333;color:white;margin-bottom:5px;margin-top:8px;"
-                  }
+                <Flex
+                  alignItems="center"
+                  justifyContent="space-between"
+                  gap="$3"
+                  mb="5px"
+                  mt="8px"
                 >
-                  {statusText()}
-                </h3>
+                  <h3
+                    style={
+                      (sophon && !background
+                        ? ""
+                        : "text-shadow: 1px 1px 2px #333;color:white;") +
+                      "margin:0;"
+                    }
+                  >
+                    {statusText()}
+                  </h3>
+                  <Show when={statusText() === locale.get("GAME_RUNNING")}>
+                    <Button
+                      size="xs"
+                      colorScheme="danger"
+                      borderRadius={8}
+                      flexShrink={0}
+                      onClick={() => wine.killServer().catch(() => undefined)}
+                    >
+                      {locale.get("FORCE_CLOSE")}
+                    </Button>
+                  </Show>
+                </Flex>
                 <Progress
                   value={progress()}
                   indeterminate={progress() == 0}
                   size="sm"
-                  borderRadius={8}
+                  borderRadius={12}
                 >
                   <ProgressIndicator
                     style={"transition: none;"}
-                    borderRadius={8}
+                    borderRadius={12}
                   ></ProgressIndicator>
                 </Progress>
               </Show>
             </Box>
-            <Popover
-              placement="top"
-              opened={showPredownloadPrompt() && !isOpen()}
-              onClose={dismissPredownload}
-              closeOnBlur={true}
-            >
-              <PopoverTrigger as={Box}>
+            <Flex direction="column" gap="$2" flexShrink={0}>
+              <Show when={sophon?.activity() || sophon?.operationRunning()}>
                 <ButtonGroup
                   class="launch-button"
-                  size="xl"
+                  role="group"
+                  aria-label="Download controls"
+                  size="sm"
+                  variant="subtle"
                   attached
-                  minWidth={150}
+                  alignSelf={
+                    launchButtonLocation === "left" ? "flex-start" : "flex-end"
+                  }
+                  opacity={0.85}
+                  _hover={{ opacity: 1 }}
+                  transition="opacity 0.2s"
+                  borderRadius={12}
+                  overflow="hidden"
                 >
-                  <Button
-                    mr="-1px"
-                    disabled={programBusy()}
-                    onClick={() => onButtonClick().catch(fatal)}
+                  <Show when={sophon?.activity()}>
+                    <Button onClick={details.onOpen}>
+                      <ActionIcon action="details" />
+                      Stats for nerds
+                    </Button>
+                  </Show>
+                  <Show when={sophon?.operationRunning()}>
+                    <Button
+                      disabled={sophon?.cancelling()}
+                      onClick={() => sophon?.cancel().catch(reportError)}
+                    >
+                      <ActionIcon action="pause" />
+                      {locale.get(sophon?.cancelling() ? "PAUSING" : "PAUSE")}
+                    </Button>
+                  </Show>
+                </ButtonGroup>
+              </Show>
+              <Popover
+                placement="top"
+                opened={
+                  showPredownloadPrompt() && !isOpen() && !installDialog()
+                }
+                onClose={dismissPredownload}
+                closeOnBlur={true}
+              >
+                <PopoverTrigger as={Box}>
+                  <ButtonGroup
+                    class="launch-button"
+                    size="xl"
+                    attached
+                    minWidth={150}
+                    opacity={0.85}
+                    _hover={{ opacity: 1 }}
+                    transition="opacity 0.2s"
+                    borderRadius={12}
+                    overflow="hidden"
                   >
-                    {installState() == "INSTALLED"
-                      ? updateRequired()
-                        ? locale.get("UPDATE")
-                        : locale.get("LAUNCH")
-                      : locale.get("INSTALL")}
-                  </Button>
-                  <Show when={installState() == "INSTALLED"}>
+                    <Button
+                      mr="-1px"
+                      disabled={
+                        programBusy() ||
+                        sophon?.loading() ||
+                        (sophon?.operationRunning() &&
+                          !canPlay(sophon.action()))
+                      }
+                      onClick={() => onButtonClick().catch(reportError)}
+                    >
+                      <Show when={sophon}>
+                        <ActionIcon action={primaryAction()} />
+                      </Show>
+                      {primaryLabel()}
+                    </Button>
+                    <Show when={sophon}>
+                      <IconButton
+                        aria-label={locale.get("SELECT_INSTALLATION_DIR")}
+                        disabled={
+                          programBusy() ||
+                          sophon?.operationRunning() ||
+                          sophon?.loading()
+                        }
+                        onClick={() => chooseGameDirectory().catch(reportError)}
+                        icon={
+                          <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 5h6l2 3h10v12H3z" />
+                          </svg>
+                        }
+                      />
+                    </Show>
                     <IconButton
                       onClick={onOpen}
-                      disabled={programBusy()}
+                      disabled={
+                        programBusy() ||
+                        sophon?.operationRunning() ||
+                        sophon?.loading()
+                      }
                       fontSize={30}
                       aria-label="Settings"
                       icon={<IconSetting />}
                     />
-                  </Show>
-                </ButtonGroup>
-              </PopoverTrigger>
-              <PopoverContent
-                borderColor="$success3"
-                bg="$success3"
-                color="$success11"
-                width={200}
-              >
-                <PopoverArrow />
-                <PopoverCloseButton />
-                <PopoverBody width={200}>
-                  <Button
-                    id="predownload"
-                    colorScheme="success"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => nonUrgentTaskQueue.next(predownload)}
-                  >
-                    {locale.format("PREDOWNLOAD_READY", [predownloadVersion()])}
-                  </Button>
-                </PopoverBody>
-              </PopoverContent>
-            </Popover>
+                  </ButtonGroup>
+                </PopoverTrigger>
+                <PopoverContent
+                  borderColor="$success3"
+                  bg="$success3"
+                  color="$success11"
+                  width={200}
+                >
+                  <PopoverArrow />
+                  <PopoverCloseButton />
+                  <PopoverBody width={200}>
+                    <Button
+                      id="predownload"
+                      colorScheme="success"
+                      size="sm"
+                      variant="ghost"
+                      disabled={
+                        nonUrgentProgramBusy() ||
+                        sophon?.loading() ||
+                        sophon?.operationRunning()
+                      }
+                      onClick={() => nonUrgentTaskQueue.next(predownload)}
+                    >
+                      {sophon?.action()?.action === "resumeUpdate"
+                        ? locale.get("RESUME") + " · "
+                        : ""}
+                      {locale.format("PREDOWNLOAD_READY", [
+                        predownloadVersion(),
+                      ])}
+                    </Button>
+                  </PopoverBody>
+                </PopoverContent>
+              </Popover>
+            </Flex>
             <Modal opened={isOpen()} onClose={onClose} scrollBehavior="inside">
               <ModalOverlay />
               <ConfigurationUI
                 onClose={action => {
                   onClose();
                   if (action == "check-integrity") {
-                    taskQueue.next(checkIntegrity);
+                    if (sophon) setInstallDialog("verify");
+                    else taskQueue.next(checkIntegrity);
                   }
                 }}
               ></ConfigurationUI>
             </Modal>
           </Flex>
         </Flex>
+        <Show when={installDialog() && sophon}>
+          {game => (
+            <Modal
+              opened={Boolean(installDialog())}
+              onClose={() => setInstallDialog(undefined)}
+              centered
+              scrollBehavior="inside"
+            >
+              <ModalOverlay />
+              <InstallOptions
+                game={game()}
+                verification={installDialog() === "verify"}
+                selectPath={selectPath}
+                onClose={() => setInstallDialog(undefined)}
+                onConfirm={selection => {
+                  const client = game();
+                  const verification = installDialog() === "verify";
+                  const directory = installDir();
+                  setInstallDialog(undefined);
+                  taskQueue.next(() =>
+                    verification
+                      ? client.checkIntegrity(selection)
+                      : client.install(directory, selection)
+                  );
+                }}
+              />
+            </Modal>
+          )}
+        </Show>
+        <Show when={details.isOpen() && sophon?.activity()}>
+          <Modal
+            opened={details.isOpen()}
+            onClose={details.onClose}
+            size="full"
+            scrollBehavior="inside"
+            motionPreset="none"
+          >
+            <ModalOverlay />
+            <DownloadDetails
+              locale={locale}
+              activity={sophon?.activity() as SophonActivity}
+              history={sophon?.history() ?? []}
+              cancelling={sophon?.cancelling() ?? false}
+              onClose={details.onClose}
+              onCancel={() => sophon?.cancel().catch(reportError)}
+            />
+          </Modal>
+        </Show>
       </div>
     );
   };
