@@ -9,6 +9,7 @@ import type { HoyoplayGameSpec } from "./hoyoplay";
 export const HOYOPLAY_CN_GAME_SPECS: HoyoplayGameSpec[] = [
   {
     id: "genshin",
+    biz: "hk4e_cn",
     namespace: "hpcngenshin",
     title: "Genshin Impact CN",
     fallbackIcon: genshinFallbackIcon,
@@ -17,6 +18,7 @@ export const HOYOPLAY_CN_GAME_SPECS: HoyoplayGameSpec[] = [
   },
   {
     id: "hsr",
+    biz: "hkrpg_cn",
     namespace: "hpcnhsr",
     title: "Honkai: Star Rail CN",
     fallbackIcon: hsrFallbackIcon,
@@ -25,6 +27,7 @@ export const HOYOPLAY_CN_GAME_SPECS: HoyoplayGameSpec[] = [
   },
   {
     id: "zzz",
+    biz: "nap_cn",
     namespace: "hpcnzzz",
     title: "Zenless Zone Zero CN",
     fallbackIcon: zzzFallbackIcon,

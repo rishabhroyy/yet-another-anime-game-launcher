@@ -2,9 +2,15 @@ import { zh_CN } from "./zh_CN";
 import { en } from "@locale/en";
 
 export const ko_KR: typeof zh_CN = {
+  CHECKING_GAME: "게임 확인 중",
+  RESUME: "계속",
+  PAUSE: "일시 정지",
+  PAUSING: "일시 정지 중…",
+  PAUSED: "일시 정지됨",
+  TIME_REMAINING: "{0}초 남음",
   CONTENT_LANG_ID: "ko-kr",
   LAUNCH: "게임 실행",
-  INSTALL: "게임 다운로드",
+  INSTALL: "다운로드",
   UPDATING: "업데이트 중",
   DOWNLOADING: "다운로드 중",
   FIXING_FILES: "게임 파일 복구 중 {0}/{1}",
@@ -147,4 +153,10 @@ export const ko_KR: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "Yaagl을 완전히 제거",
   SETTING_UNINSTALL_YAAGL_DESC:
     "Yaagl을 완전히 제거하시겠습니까? 이렇게 하면 모든 구성, Wine 접두사 및 데이터가 삭제됩니다. 게임 파일은 삭제되지 않습니다. Yaagl이 즉시 닫힙니다. 나중에 응용 프로그램 폴더에서 Yaagl.app을 수동으로 삭제하는 것을 잊지 마십시오.",
+  SETUP_TITLE: "초기 설정",
+  SETUP_DESC: "실행 환경을 다운로드하기 전에 설정 방식을 선택해 주세요.",
+  SETUP_RECOMMENDED: "권장 설정",
+  SETUP_CUSTOM: "사용자 지정 설정",
+  SETUP_CONTINUE: "계속",
+  FORCE_CLOSE: "강제 종료",
 };

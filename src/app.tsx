@@ -20,8 +20,7 @@ import {
   getCorrectWineBinary,
 } from "./wine";
 import { createGithubEndpoint } from "./github";
-import { createLauncher } from "./launcher";
-import { createHoyoplayLauncher } from "./launcher/hoyoplay";
+import { createLauncher } from "./launcher/hoyoplay-entry"; // fork: HoYoPlay
 import "./app.css";
 import { createUpdater, downloadProgram } from "./updater";
 import { createCommonUpdateUI } from "./common-update-ui";
@@ -135,44 +134,23 @@ export async function createApp() {
       prefix: prefixPath,
       distro: wineStatus.wineDistribution,
     });
-    if (
-      import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplay" ||
-      import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
-    ) {
-      const specs =
-        import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
-          ? (await import("./launcher/hoyoplay-cn")).HOYOPLAY_CN_GAME_SPECS
-          : undefined;
-      MainApp = await createHoyoplayLauncher({
+    MainApp = await createLauncher({
+      wine,
+      locale,
+      github,
+      channelClient: await createClient({
         wine,
-        locale,
         aria2,
-        github,
-        onCheckUpdate,
-        appSupportName:
-          import.meta.env.YAAGL_CHANNEL_CLIENT === "hoyoplaycn"
-            ? "Yaagl CN"
-            : undefined,
-        specs,
-      });
-    } else {
-      MainApp = await createLauncher({
-        wine,
         locale,
-        github,
-        channelClient: await createClient({
-          wine,
-          aria2,
-          locale,
-        }),
-        onCheckUpdate,
-      });
-    }
+      }),
+      onCheckUpdate,
+    });
   } else {
     MainApp = await createWineInstallProgram({
       aria2,
       wineAbsPrefix: prefixPath,
       wineDistro: wineStatus.wineDistribution,
+      wineUpdate: wineStatus.wineUpdate,
       locale,
     });
   }

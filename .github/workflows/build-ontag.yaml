@@ -2,7 +2,7 @@ name: "Build Latest (when new tag created)"
 on:
   push:
     tags:
-      - "*"
+      - '*'
 env:
   YAAGL_VERSION: ${{ github.ref_name }}
 permissions:
@@ -15,33 +15,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          submodules: recursive
 
-      - name: Install UV
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install Swift
+        uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: "6.4.0"
 
-      - name: Sophon Build Cache
-        id: sophon-build-cache
+      - name: Cache Swift build
         uses: actions/cache@v4
         with:
-          key: cache-key-${{ hashFiles('build-sophon.sh', 'sophon_server/*.py', 'sophon_server/uv.lock', 'sophon_server/.python-version', 'sophon_server/pyproject.toml') }}
-          path: |
-            ./sophon_server/build/
-            ./sophon_server/.cache/
-
-      - name: Sophon Build
-        if: ${{ steps.sophon-build-cache.outputs.cache-hit != 'true' }}
-        run: |
-          ./build-sophon.sh
-
-      - name: Save Sophon Build Cache
-        if: ${{ steps.sophon-build-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          key: cache-key-${{ hashFiles('build-sophon.sh', 'sophon_server/*.py', 'sophon_server/uv.lock', 'sophon_server/.python-version', 'sophon_server/pyproject.toml') }}
-          path: |
-            ./sophon_server/build/
-            ./sophon_server/.cache/
+          path: vendor/SophonClientv3/.build
+          key: swift-${{ runner.os }}-${{ runner.arch }}-6.3.3-${{ hashFiles('build-sophon.sh', 'vendor/SophonClientv3/Package.swift', 'vendor/SophonClientv3/Package.resolved') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v3
@@ -89,8 +76,6 @@ jobs:
           cp dist/Yaagl/resources.neu resources_napcn.neu
           YAAGL_CHANNEL_CLIENT=napos node ./build-app.js
           cp dist/Yaagl/resources.neu resources_napos.neu
-          YAAGL_CHANNEL_CLIENT=hoyoplaycn node ./build-app.js
-          cp dist/Yaagl/resources.neu resources_hoyoplaycn.neu
 
       - name: Setup Node 20 for DMG creation
         uses: actions/setup-node@v4
@@ -109,7 +94,6 @@ jobs:
           tar -zcf "Yaagl HSR OS.app.tar.gz" "Yaagl HSR OS.app"
           tar -zcf "Yaagl ZZZ.app.tar.gz" "Yaagl ZZZ.app"
           tar -zcf "Yaagl ZZZ OS.app.tar.gz" "Yaagl ZZZ OS.app"
-          tar -zcf "Yaagl CN.app.tar.gz" "Yaagl CN.app"
           
           # DMGs for manual downloads
           create-dmg --no-code-sign --dmg-title="Yaagl" "Yaagl.app" || true
@@ -132,9 +116,6 @@ jobs:
           
           create-dmg --no-code-sign --dmg-title="Yaagl ZZZ OS" "Yaagl ZZZ OS.app" || true
           mv "Yet Another Anime Game Launcher "*.dmg "Yaagl ZZZ OS.dmg"
-          
-          create-dmg --no-code-sign --dmg-title="Yaagl CN" "Yaagl CN.app" || true
-          mv "Yet Another Anime Game Launcher "*.dmg "Yaagl CN.dmg"
 
       - name: Generate prerelease
         uses: "marvinpinto/action-automatic-releases@latest"
@@ -152,4 +133,3 @@ jobs:
             resources_hkrpgos.neu
             resources_napcn.neu
             resources_napos.neu
-            resources_hoyoplaycn.neu

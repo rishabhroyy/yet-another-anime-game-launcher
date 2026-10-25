@@ -2,15 +2,11 @@ import { Aria2 } from "@aria2";
 import { CommonUpdateProgram } from "@common-update-ui";
 import { createConfiguration } from "@config";
 import { Locale } from "@locale";
+import { alert, fatal, humanFileSize, open, openDir, setKey } from "@utils";
 import {
   activateStorageNamespace,
-  fatal,
-  humanDuration,
-  humanFileSize,
-  open,
-  openDir,
   withStorageNamespace,
-} from "@utils";
+} from "../utils/hoyoplay-storage";
 import { Wine } from "@wine";
 import {
   Button,
@@ -24,7 +20,14 @@ import {
   Progress,
   ProgressIndicator,
 } from "@hope-ui/solid";
-import { Accessor, For, JSXElement, Show, createSignal } from "solid-js";
+import {
+  Accessor,
+  For,
+  JSXElement,
+  Show,
+  createEffect,
+  createSignal,
+} from "solid-js";
 import { createGameInstallationDirectorySanitizer } from "../accidental-complexity";
 import { ChannelClient } from "../channel-client";
 import { Config } from "../config/config-def";
@@ -35,7 +38,14 @@ import { createClient as createZzzOsClient } from "../clients/napos";
 import genshinFallbackIcon from "../assets/Nahida.cr.png";
 import hsrFallbackIcon from "../icons/March7th.cr.png";
 import zzzFallbackIcon from "../icons/ZZZ_Bang.cr.png";
-import { createHoyoplayTaskQueueState } from "./hoyoplay-task-queue";
+import {
+  createHoyoplayTaskQueueState,
+  humanDuration,
+} from "./hoyoplay-task-queue";
+import { getGameIcons, getUpdateSizeBytes } from "./hoyoplay-hyp";
+import { InstallOptions } from "./install-options";
+import type { SophonGame } from "../sophon/game";
+import "./hoyoplay.css";
 import {
   applyHsrFpsRegistry,
   createDelayedCompanion,
@@ -69,6 +79,8 @@ type HoyoplayGameId = "genshin" | "hsr" | "zzz";
 
 export type HoyoplayGameSpec = {
   id: HoyoplayGameId;
+  // HoYoPlay game biz, same as the client's server id (e.g. "hk4e_global")
+  biz: string;
   namespace: string;
   title: string;
   fallbackIcon: string;
@@ -82,6 +94,7 @@ export type HoyoplayGameSpec = {
 
 type GameState = {
   id: HoyoplayGameId;
+  biz: string;
   namespace: string;
   title: string;
   client: ChannelClient;
@@ -96,6 +109,8 @@ type GameState = {
   fpsTarget: Accessor<string>;
   setFpsTarget: (value: string) => void;
   wineRef: HoyoplayWineRef;
+  updateSizeBytes: Accessor<number>;
+  setUpdateSizeBytes: (value: number) => void;
   wineTag: Accessor<string>;
   setWineTag: (value: string) => void;
   renderer: Accessor<HoyoplayRenderer>;
@@ -110,6 +125,7 @@ type GameState = {
 export const DEFAULT_HOYOPLAY_GAME_SPECS: HoyoplayGameSpec[] = [
   {
     id: "genshin",
+    biz: "hk4e_global",
     namespace: "hpgenshin",
     title: "Genshin Impact",
     fallbackIcon: genshinFallbackIcon,
@@ -118,6 +134,7 @@ export const DEFAULT_HOYOPLAY_GAME_SPECS: HoyoplayGameSpec[] = [
   },
   {
     id: "hsr",
+    biz: "hkrpg_global",
     namespace: "hphsr",
     title: "Honkai: Star Rail",
     fallbackIcon: hsrFallbackIcon,
@@ -126,6 +143,7 @@ export const DEFAULT_HOYOPLAY_GAME_SPECS: HoyoplayGameSpec[] = [
   },
   {
     id: "zzz",
+    biz: "nap_global",
     namespace: "hpzzz",
     title: "Zenless Zone Zero",
     fallbackIcon: zzzFallbackIcon,
@@ -190,6 +208,7 @@ export async function createHoyoplayLauncher({
   const [d3dmetalPath, setD3DMetalPath] = createSignal(initialD3DMetalPath);
 
   const games: GameState[] = [];
+  const gameIcons = await getGameIcons(specs[0]?.biz.endsWith("_cn") ?? false);
 
   for (const spec of specs) {
     const wineRef: HoyoplayWineRef = { current: baseWine };
@@ -205,9 +224,14 @@ export async function createHoyoplayLauncher({
           locale,
           gameInstallDir: client.installDir,
           configForChannelClient: client.createConfig,
+          sophon: client.sophon,
           onCheckUpdate,
         })
     );
+    // Upstream artwork's icon is the current event banner; the sidebar wants
+    // the game's own icon.
+    client.uiContent.iconImage = gameIcons[spec.biz] ?? spec.fallbackIcon;
+    const [updateSizeBytes, setUpdateSizeBytes] = createSignal(0);
     const fps = await getFpsConfig(spec.id);
     const [fpsEnabled, setFpsEnabled] = createSignal(fps.enabled);
     const [fpsTarget, setFpsTarget] = createSignal(String(fps.target));
@@ -228,6 +252,8 @@ export async function createHoyoplayLauncher({
       fpsTarget,
       setFpsTarget,
       wineRef,
+      updateSizeBytes,
+      setUpdateSizeBytes,
       wineTag,
       setWineTag,
       renderer,
@@ -345,17 +371,53 @@ export async function createHoyoplayLauncher({
       setPendingSizeBytes,
     ] = createHoyoplayTaskQueueState({ locale });
 
+    // Sophon only knows a game's state after refresh(); until then every
+    // client reports updateRequired(). Refresh one game at a time (they share
+    // one SophonCLI process).
+    let refreshed = Promise.resolve();
     games.forEach(game => {
-      // Skip the startup patch-revert/integrity-check pass for a game that's
-      // already known to need an update: repairing a stale install against
-      // the latest manifest aborts instead of prompting to update.
-      if (game.client.updateRequired()) return;
+      const sophon = game.client.sophon;
+      const ready = (refreshed = refreshed.then(() => sophon?.refresh()));
       taskQueue.next(
         namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-          game.client.init(game.config)
+          (async function* () {
+            await ready;
+            // Skip the startup patch-revert/integrity-check pass for a game
+            // that needs an update: repairing a stale install against the
+            // latest manifest re-downloads it instead of prompting to update.
+            if (game.client.updateRequired()) return;
+            yield* game.client.init(game.config);
+          })()
         )
       );
+      if (sophon) {
+        let latest = 0;
+        createEffect(() => {
+          sophon.action(); // re-estimate whenever Sophon's next action changes
+          const request = ++latest;
+          void getUpdateSizeBytes(game.biz, sophon).then(bytes => {
+            if (request === latest) game.setUpdateSizeBytes(bytes);
+          });
+        });
+      }
     });
+
+    const [installDialogGame, setInstallDialogGame] = createSignal<GameState>();
+    let restoreInstallDialogNamespace: (() => void) | undefined;
+
+    // The dialog may change the install directory (setKey), so the game's
+    // storage namespace stays active while it is open.
+    function openInstallDialog(game: GameState) {
+      restoreInstallDialogNamespace?.();
+      restoreInstallDialogNamespace = activateStorageNamespace(game.namespace);
+      setInstallDialogGame(game);
+    }
+
+    function closeInstallDialog() {
+      restoreInstallDialogNamespace?.();
+      restoreInstallDialogNamespace = undefined;
+      setInstallDialogGame(undefined);
+    }
 
     async function saveWineSettings(game: GameState) {
       await setHoyoplayGameWineTag(game.id, game.wineTag());
@@ -374,16 +436,32 @@ export async function createHoyoplayLauncher({
     async function onPrimaryAction() {
       if (programBusy()) return;
       const game = selectedGame();
+      const sophon = game.client.sophon;
+      if (sophon?.loading()) return;
       await saveWineSettings(game);
       await saveRendererSettings(game);
       await saveFpsSettings(game);
 
+      if (sophon?.error()) {
+        await sophon.refresh();
+        if (sophon.error()) {
+          await alert("Error", sophon.error());
+          return;
+        }
+      }
+
       if (game.client.installState() === "INSTALLED") {
         if (game.client.updateRequired()) {
-          setPendingSizeBytes(game.client.updateSizeBytes?.() ?? 0);
+          setPendingSizeBytes(game.updateSizeBytes());
           taskQueue.next(
             namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
-              game.client.update()
+              (async function* () {
+                yield* game.client.update();
+                // A "patched" flag left by a crashed session would make the
+                // next launch skip re-applying patches (DXMT) to the updated
+                // files, since init() is skipped while an update is pending.
+                await setKey("patched", null);
+              })()
             )
           );
         } else {
@@ -393,6 +471,14 @@ export async function createHoyoplayLauncher({
             )
           );
         }
+      } else if (sophon?.action()?.action === "resumeInstall") {
+        taskQueue.next(
+          namespacedProgram(aria2, baseWine, game, d3dmetalPath, () =>
+            sophon.performAction()
+          )
+        );
+      } else if (sophon) {
+        openInstallDialog(game);
       } else {
         const selection = await selectPath();
         if (!selection) return;
@@ -405,9 +491,16 @@ export async function createHoyoplayLauncher({
     }
 
     function actionLabel(game: GameState) {
+      const sophon = game.client.sophon;
+      if (sophon?.loading()) return locale.get("CHECKING_GAME");
+      if (sophon?.error()) return locale.get("D3DMETAL_LICENSE_RETRY");
+      if (sophon?.action()?.action === "resumeInstall")
+        return locale.get("RESUME");
       if (game.client.installState() !== "INSTALLED") return "Get Game";
       if (!game.client.updateRequired()) return "Start Game";
-      const sizeBytes = game.client.updateSizeBytes?.() ?? 0;
+      if (sophon?.action()?.action === "resumeUpdate")
+        return locale.get("RESUME");
+      const sizeBytes = game.updateSizeBytes();
       if (sizeBytes <= 0) return locale.get("UPDATE");
       const speedBps = estimatedSpeedBps();
       const etaSuffix =
@@ -419,6 +512,10 @@ export async function createHoyoplayLauncher({
 
     function selectedInstallLabel() {
       const game = selectedGame();
+      if (game.client.sophon?.loading()) return "Checking…";
+      if (game.client.sophon?.error()) return "Could not check game";
+      if (game.client.sophon?.action()?.action === "resumeInstall")
+        return "Install paused";
       if (game.client.installState() !== "INSTALLED") return "Not installed";
       return game.client.updateRequired() ? "Update available" : "Ready";
     }
@@ -733,6 +830,39 @@ export async function createHoyoplayLauncher({
             }}
           </Show>
         </Modal>
+        <Show when={installDialogGame()}>
+          {game => (
+            <Modal
+              opened
+              onClose={closeInstallDialog}
+              centered
+              scrollBehavior="inside"
+            >
+              <ModalOverlay />
+              <InstallOptions
+                game={game().client.sophon as SophonGame}
+                verification={false}
+                selectPath={selectPath}
+                onClose={closeInstallDialog}
+                onConfirm={selection => {
+                  const savedGame = game();
+                  const sophon = savedGame.client.sophon as SophonGame;
+                  const directory = sophon.installDir();
+                  closeInstallDialog();
+                  taskQueue.next(
+                    namespacedProgram(
+                      aria2,
+                      baseWine,
+                      savedGame,
+                      d3dmetalPath,
+                      () => sophon.install(directory, selection)
+                    )
+                  );
+                }}
+              />
+            </Modal>
+          )}
+        </Show>
       </div>
     );
   };

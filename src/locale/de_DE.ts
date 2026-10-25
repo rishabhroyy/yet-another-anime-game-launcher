@@ -2,9 +2,15 @@ import { zh_CN } from "./zh_CN";
 import { en } from "@locale/en";
 
 export const de_DE: typeof zh_CN = {
+  CHECKING_GAME: "Spiel wird geprüft",
+  RESUME: "Fortsetzen",
+  PAUSE: "Pausieren",
+  PAUSING: "Wird pausiert…",
+  PAUSED: "Pausiert",
+  TIME_REMAINING: "{0}s verbleibend",
   CONTENT_LANG_ID: "de-de",
   LAUNCH: "Spiel starten",
-  INSTALL: "Spiel installieren",
+  INSTALL: "Herunterladen",
   UPDATING: "Aktualisieren",
   DOWNLOADING: "Herunterladen",
   FIXING_FILES: "Spieldateien reparieren {0}/{1}",
@@ -147,4 +153,11 @@ export const de_DE: typeof zh_CN = {
   SETTING_UNINSTALL_YAAGL: "Yaagl vollständig deinstallieren",
   SETTING_UNINSTALL_YAAGL_DESC:
     "Möchten Sie Yaagl wirklich deinstallieren? Dadurch werden alle Konfigurationen, Wine-Präfixe und Daten gelöscht. Ihre Spieldateien werden NICHT gelöscht. Yaagl wird sofort geschlossen. Bitte denken Sie daran, die Yaagl.app anschließend manuell aus Ihrem Programme-Ordner zu löschen.",
+  SETUP_TITLE: "Ersteinrichtung",
+  SETUP_DESC:
+    "Wählen Sie aus, wie Sie die Wine-Umgebung vor dem Herunterladen konfigurieren möchten.",
+  SETUP_RECOMMENDED: "Empfohlene Einstellungen",
+  SETUP_CUSTOM: "Benutzerdefinierte Einstellungen",
+  SETUP_CONTINUE: "Weiter",
+  FORCE_CLOSE: "Beenden erzwingen",
 };
